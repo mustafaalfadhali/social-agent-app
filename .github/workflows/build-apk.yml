@@ -23,9 +23,15 @@ jobs:
       - name: Unzip mobile app source
         run: unzip -o mobile_app.zip -d .
 
+      # Deliberately NOT pinned to an old patch version - Flutter versions
+      # before 3.27 have a known bug where plugin subprojects (e.g.
+      # speech_to_text, flutter_plugin_android_lifecycle) fail with
+      # "compileSdkVersion is not specified" / "Cannot invoke method
+      # substring() on null object" because flutter.compileSdkVersion
+      # resolves to null for them. See https://github.com/flutter/flutter/issues/164362
+      # - fixed in 3.27+. "stable" always resolves to a current release.
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.24.5"
           channel: "stable"
 
       # `flutter create .` regenerates the android/ and ios/ platform
