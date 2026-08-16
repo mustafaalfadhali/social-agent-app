@@ -1,0 +1,49 @@
+name: Build Android APK
+
+# Builds an installable .apk automatically in GitHub's cloud - no Flutter or
+# Android SDK install needed on your own machine. Triggers on every push to
+# main/master that updates mobile_app.zip (the mobile app's source code,
+# uploaded as a single zip so it can be added from a phone browser without
+# a git client), and can also be triggered manually from the Actions tab
+# ("Run workflow").
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "mobile_app.zip"
+      - ".github/workflows/build-apk.yml"
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unzip mobile app source
+        run: unzip -o mobile_app.zip -d .
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.24.5"
+          channel: "stable"
+
+      # `flutter create .` regenerates the android/ and ios/ platform
+      # folders around the existing lib/ and pubspec.yaml (harmless to
+      # re-run - it will not overwrite your Dart source).
+      - name: Ensure platform folders exist
+        working-directory: mobile_app
+        run: flutter create . --platforms=android
+
+      - working-directory: mobile_app
+        run: flutter pub get
+
+      - name: Build release APK
+        working-directory: mobile_app
+        run: flutter build apk --release
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: social-agent-app-release
+          path: mobile_app/build/app/outputs/flutter-apk/app-release.apk
