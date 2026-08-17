@@ -41,6 +41,22 @@ jobs:
         working-directory: mobile_app
         run: flutter create . --platforms=android
 
+      # Android blocks plain http:// traffic by default since API 28. The
+      # android/ folder is regenerated from scratch every run (only
+      # res/xml/network_security_config.xml survives, it's checked in - see
+      # that file), so the manifest attributes can't just be a one-time
+      # manual edit - they have to be re-applied on every build. Belt and
+      # suspenders: both the classic usesCleartextTraffic attribute AND the
+      # more modern networkSecurityConfig resource. Drop both once the
+      # backend is behind https://.
+      - name: Allow cleartext HTTP (backend is not on https:// yet)
+        working-directory: mobile_app
+        run: |
+          sed -i 's/<application/<application android:usesCleartextTraffic="true" android:networkSecurityConfig="@xml\/network_security_config"/' android/app/src/main/AndroidManifest.xml
+          echo "----- Resulting AndroidManifest.xml -----"
+          cat android/app/src/main/AndroidManifest.xml
+          echo "-------------------------------------------"
+
       - working-directory: mobile_app
         run: flutter pub get
 
