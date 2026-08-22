@@ -45,6 +45,8 @@ jobs:
       - name: Build release Windows app
         working-directory: mobile_app
         run: flutter build windows --release
+        env:
+          CMAKE_POLICY_VERSION_MINIMUM: "3.5"
 
       # The build output is a folder (the .exe plus required .dll files and
       # a data/ folder it needs alongside it to run) - upload-artifact zips
