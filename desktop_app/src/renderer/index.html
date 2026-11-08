@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' file: data:; style-src 'self' 'unsafe-inline'; script-src 'self'">
+  <title>سراج</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <aside>
+    <div class="brand">سِراج</div>
+    <nav>
+      <button data-tab="home" class="active">الرئيسية</button>
+      <button data-tab="library">مكتبة الصور</button>
+      <button data-tab="posts">المنشورات</button>
+      <button data-tab="accounts">الحسابات</button>
+      <button data-tab="settings">الإعدادات</button>
+    </nav>
+    <div id="claudeBadge" class="badge">Claude Code: …</div>
+  </aside>
+
+  <main>
+    <!-- الرئيسية -->
+    <section id="home" class="tab active">
+      <h1>الرئيسية</h1>
+      <div class="cards">
+        <div class="card"><h3>Claude Code</h3><p id="claudeStatus">جارِ الفحص…</p>
+          <div class="row"><button id="btnClaudeLogin">تسجيل الدخول</button><button id="btnClaudeInstall" class="ghost">طريقة التثبيت</button></div></div>
+        <div class="card"><h3>الحسابات</h3><p id="accSummary"></p></div>
+        <div class="card"><h3>النشر اليومي</h3><p id="scheduleSummary"></p>
+          <button id="btnRunNow">تشغيل الآن</button></div>
+      </div>
+      <h2>السجل</h2>
+      <ul id="log" class="log"></ul>
+    </section>
+
+    <!-- المكتبة -->
+    <section id="library" class="tab">
+      <div class="head"><h1>مكتبة الصور</h1><button id="btnAddMedia">+ رفع صور من الجهاز</button></div>
+      <p class="muted">الوكيل يأخذ كل يوم صورة جديدة (لم تُستخدم) ويكتب لها منشوراً وينشره.</p>
+      <div id="mediaGrid" class="grid"></div>
+    </section>
+
+    <!-- المنشورات -->
+    <section id="posts" class="tab">
+      <h1>المنشورات</h1>
+      <div id="postList"></div>
+    </section>
+
+    <!-- الحسابات -->
+    <section id="accounts" class="tab">
+      <h1>الحسابات</h1>
+      <div class="card">
+        <h3>Meta (فيسبوك + إنستغرام)</h3>
+        <p class="muted">أنشئ تطبيقاً في developers.facebook.com وأضف رابط إعادة التوجيه: <code id="metaRedirect"></code></p>
+        <label>App ID <input id="metaAppId"></label>
+        <label>App Secret <input id="metaAppSecret" type="password" placeholder="(محفوظ)"></label>
+        <label>Configuration ID (اختياري - Facebook Login for Business) <input id="metaConfigId"></label>
+        <div class="row"><button id="btnMetaSave" class="ghost">حفظ</button><button id="btnMetaConnect">ربط عبر تسجيل الدخول</button></div>
+        <details><summary>أو الصق Access Token يدوياً</summary>
+          <div class="row"><input id="metaToken" placeholder="User access token"><button id="btnMetaToken" class="ghost">ربط</button></div>
+        </details>
+        <label>الصفحة المستخدمة <select id="metaPage"></select></label>
+      </div>
+      <div class="card">
+        <h3>تيك توك</h3>
+        <p class="muted">أنشئ تطبيقاً في developers.tiktok.com (Login Kit for Desktop + Content Posting API) وأضف: <code id="ttRedirect"></code></p>
+        <label>Client Key <input id="ttKey"></label>
+        <label>Client Secret <input id="ttSecret" type="password" placeholder="(محفوظ)"></label>
+        <div class="row"><button id="btnTtSave" class="ghost">حفظ</button><button id="btnTtConnect">ربط</button><button id="btnTtDisconnect" class="ghost">فصل</button></div>
+        <p id="ttStatus" class="muted"></p>
+      </div>
+    </section>
+
+    <!-- الإعدادات -->
+    <section id="settings" class="tab">
+      <h1>الإعدادات</h1>
+      <div class="card">
+        <h3>النشاط التجاري</h3>
+        <label>اسم النشاط <input id="sName"></label>
+        <label>وصف النشاط والجمهور <textarea id="sDesc" rows="3"></textarea></label>
+        <label>النبرة <input id="sTone"></label>
+        <label>لغة المنشورات <input id="sLang"></label>
+      </div>
+      <div class="card">
+        <h3>النشر اليومي</h3>
+        <label>أوقات النشر (مثال: 10:00, 19:30) <input id="sTimes"></label>
+        <div class="row checks">
+          <label><input type="checkbox" id="pFacebook"> فيسبوك</label>
+          <label><input type="checkbox" id="pInstagram"> إنستغرام</label>
+          <label><input type="checkbox" id="pTiktok"> تيك توك</label>
+        </div>
+        <label><input type="checkbox" id="sReview"> مراجعة المنشور قبل النشر</label>
+        <label>خصوصية تيك توك
+          <select id="sTtPrivacy">
+            <option value="SELF_ONLY">خاص (مطلوب قبل اعتماد تطبيق تيك توك)</option>
+            <option value="PUBLIC_TO_EVERYONE">عام</option>
+            <option value="MUTUAL_FOLLOW_FRIENDS">الأصدقاء</option>
+          </select></label>
+      </div>
+      <div class="card">
+        <h3>النظام</h3>
+        <label><input type="checkbox" id="sAutoStart"> التشغيل مع ويندوز (في الخلفية)</label>
+        <label>مسار Claude Code (اتركه فارغاً للاكتشاف التلقائي) <input id="sClaudePath"></label>
+      </div>
+      <button id="btnSaveSettings">حفظ الإعدادات</button>
+    </section>
+  </main>
+
+  <dialog id="createDlg">
+    <h3>منشور جديد</h3>
+    <img id="createImg" class="preview">
+    <div class="row checks">
+      <label><input type="checkbox" id="cFacebook" checked> فيسبوك</label>
+      <label><input type="checkbox" id="cInstagram" checked> إنستغرام</label>
+      <label><input type="checkbox" id="cTiktok"> تيك توك</label>
+    </div>
+    <label>توجيه إضافي لـ Claude (اختياري) <input id="cHint" placeholder="مثال: عرض خصم 20% لنهاية الأسبوع"></label>
+    <div class="row"><button id="btnCreateGo">اكتب المنشور</button><button id="btnCreateCancel" class="ghost">إلغاء</button></div>
+  </dialog>
+
+  <dialog id="rejectDlg">
+    <h3>رفض المنشور</h3>
+    <label>لماذا رفضته؟ (يتعلم منه الوكيل) <input id="rejReason"></label>
+    <div class="row"><button id="btnRejGo" class="danger">رفض</button><button id="btnRejCancel" class="ghost">إلغاء</button></div>
+  </dialog>
+
+  <div id="toast"></div>
+  <script src="app.js"></script>
+</body>
+</html>

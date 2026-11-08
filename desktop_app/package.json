@@ -1,0 +1,34 @@
+{
+  "name": "siraj-desktop",
+  "productName": "Siraj",
+  "version": "1.0.0",
+  "description": "سِراج - وكيل سوشال ميديا لويندوز مربوط بـ Claude Code",
+  "main": "src/main.js",
+  "author": "Mustafa",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis --x64 --publish never"
+  },
+  "dependencies": {
+    "ffmpeg-static": "^5.2.0"
+  },
+  "devDependencies": {
+    "electron": "33.4.11",
+    "electron-builder": "25.1.8"
+  },
+  "build": {
+    "appId": "com.siraj.desktop",
+    "productName": "Siraj",
+    "directories": { "output": "dist", "buildResources": "build" },
+    "files": ["src/**/*", "package.json"],
+    "asarUnpack": ["node_modules/ffmpeg-static/**"],
+    "win": { "target": "nsis", "signAndEditExecutable": false },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "Siraj"
+    }
+  }
+}
