@@ -5,7 +5,7 @@ const crypto = require('crypto');
 const { execFile } = require('child_process');
 const { PORT, waitForCode } = require('./oauth');
 
-const REDIRECT = `http://localhost:${PORT}/tiktok/callback/`;
+const REDIRECT = "https://branches.mustafa-server.vip/siraj-cb/tiktok";
 const API = 'https://open.tiktokapis.com/v2';
 
 function ffmpegPath() {
