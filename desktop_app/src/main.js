@@ -9,6 +9,7 @@ const meta = require('./meta');
 const tiktok = require('./tiktok');
 const agent = require('./agent');
 const contracts = require('./contracts');
+const odoo = require('./odoo');
 
 app.setPath('userData', path.join(app.getPath('appData'), 'SirajDesktop'));
 const dataDir = app.getPath('userData');
@@ -61,6 +62,7 @@ function publicState() {
       clientKey: d.tiktok.clientKey, hasSecret: !!d.tiktok.clientSecret,
       connected: !!d.tiktok.refreshToken, displayName: d.tiktok.displayName, redirect: tiktok.REDIRECT,
     },
+    odoo: { url: d.odoo.url, db: d.odoo.db, login: d.odoo.login, hasKey: !!d.odoo.apiKey },
     media: d.media.map((m) => ({ ...m, url: 'file:///' + path.join(mediaDir, m.file).replace(/\\/g, '/') })),
     posts: d.posts,
     log: d.log.slice(0, 100),
@@ -78,6 +80,14 @@ function handle(name, fn) {
 function registerIpc() {
   handle('state', () => publicState());
   handle('contracts:list', () => contracts.list());
+  handle('odoo:save', (f) => {
+    const d = store.get();
+    d.odoo = { url: (f.url || '').trim(), db: (f.db || '').trim(), login: (f.login || '').trim(), apiKey: f.apiKey ? f.apiKey.trim() : d.odoo.apiKey };
+    store.save();
+  });
+  handle('odoo:test', () => odoo.test(store.get().odoo));
+  handle('odoo:summary', () => odoo.summary(store.get().odoo));
+  handle('odoo:disconnect', () => { store.get().odoo = { url: '', db: '', login: '', apiKey: '' }; store.save(); });
   handle('claude:status', () => claude.status(store.get().settings.claudePath));
   handle('claude:login', () => {
     if (process.platform === 'win32') spawn('cmd.exe', ['/c', 'start', 'cmd', '/k', 'claude'], { detached: true, windowsHide: false });

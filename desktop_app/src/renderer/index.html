@@ -72,6 +72,15 @@
     <section id="accounts" class="tab">
       <h1>الحسابات</h1>
       <div class="card">
+        <h3>أودو (المحاسبة) — قراءة فقط</h3>
+        <p class="muted">أنشئ مفتاح API من أودو: الملف الشخصي ← الأمان ← مفتاح API جديد. المفتاح يبقى على جهازك فقط.</p>
+        <label>رابط أودو<input id="odUrl" placeholder="https://xxxx.odoo.com"></label>
+        <label>اسم قاعدة البيانات<input id="odDb"></label>
+        <label>البريد (المستخدم)<input id="odLogin"></label>
+        <label>مفتاح API<input id="odKey" type="password" placeholder="يُترك فارغاً للإبقاء على المحفوظ"></label>
+        <div class="row"><button id="btnOdSave">حفظ</button><button class="ghost" id="btnOdTest">اختبار الاتصال</button><button class="ghost" id="btnOdOff">فصل</button><span id="odStatus" class="muted"></span></div>
+      </div>
+      <div class="card">
         <h3>Meta (فيسبوك + إنستغرام)</h3>
         <p class="muted">أنشئ تطبيقاً في developers.facebook.com وأضف رابط إعادة التوجيه: <code id="metaRedirect"></code></p>
         <label>App ID <input id="metaAppId"></label>

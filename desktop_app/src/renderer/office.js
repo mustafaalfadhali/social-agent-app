@@ -5,7 +5,8 @@ const Office = (() => {
   const cx = cv.getContext('2d');
   const layer = document.getElementById('officeLayer');
   const drawer = document.getElementById('officeDrawer');
-  let agents = [], frame = 0, selected = null, hover = null, last = { state: null, ct: null };
+  let agents = [], frame = 0, selected = null, hover = null, last = { state: null, ct: null, odoo: null };
+  const money = (n) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(n) + ' ر.س';
 
   const COL = { 'النشر': '#f5a524', 'العقود': '#60a5fa', 'المحاسبة': '#34d399', 'الزيارات': '#c084fc', 'خدمة العملاء': '#fb7185' };
   const SKIN = ['#f1c7a0', '#e0ac82', '#c68a63', '#f1c7a0', '#d9a679'];
@@ -144,6 +145,15 @@ const Office = (() => {
     } else if (a.name === 'العقود') {
       const soon = ct ? ct.items.filter((c) => c.days >= 0 && c.days <= 90) : [];
       body += `<div class="row"><button id="odCt">فتح العقود</button></div><h4>تنتهي خلال 90 يوماً</h4><ul>${soon.map((c) => `<li>${esc2(c.client)}<br><span class="muted">باقي ${c.days} يوم · ${esc2(c.end)}</span></li>`).join('') || '<li class="muted">لا شيء</li>'}</ul>`;
+    } else if (a.name === 'المحاسبة') {
+      const o = last.odoo;
+      if (!st.odoo.hasKey) body += `<p class="muted">لم يُربط بأودو بعد.</p><div class="row"><button id="odGo">ربط أودو</button></div>`;
+      else if (!o) body += '<p class="muted">جارِ الاتصال بأودو…</p>';
+      else if (o.error) body += `<p class="muted">⚠ ${esc2(o.error)}</p><div class="row"><button class="ghost" id="odGo">فتح إعدادات أودو</button></div>`;
+      else body += `<div class="mini"><div><b>${money(o.month.total)}</b><span>فواتير هذا الشهر (${o.month.count})</span></div><div><b>${money(o.open.total)}</b><span>مستحقات مفتوحة (${o.open.count})</span></div><div><b>${money(o.year.total)}</b><span>فواتير هذه السنة (${o.year.count})</span></div></div>` +
+        (o.customers.length ? '<h4>أرصدة العملاء المفتوحة</h4><ul>' + o.customers.map((c) => `<li>${esc2(c.name)}<br><span class="muted">${money(c.residual)}</span></li>`).join('') + '</ul>' : '') +
+        '<h4>آخر الفواتير</h4><ul>' + o.recent.map((i) => `<li>${i.paid ? '✅' : '⏳'} ${esc2(i.name)} · ${money(i.total)}<br><span class="muted">${esc2(i.partner)} · ${esc2(i.date || '')}</span></li>`).join('') + '</ul>';
+      body += '<p class="muted">قراءة فقط. الإصدار وتسجيل الدفعات يأتيان لاحقاً بموافقتك.</p>';
     } else {
       body += `<p class="muted">لم يُربط بالبرنامج بعد، وسيبدأ عمله عند الربط.</p>`;
     }
@@ -154,17 +164,26 @@ const Office = (() => {
     const g = (id) => drawer.querySelector(id);
     if (g('#odRun')) g('#odRun').onclick = (e) => withBusy(e.target, async () => { toast('جارِ التوليد…'); await call('agent:runNow'); await refresh(); });
     if (g('#odPosts')) g('#odPosts').onclick = () => document.querySelector('nav button[data-tab=posts]').click();
+    if (g('#odGo')) g('#odGo').onclick = () => document.querySelector('nav button[data-tab=accounts]').click();
     if (g('#odCt')) g('#odCt').onclick = () => document.querySelector('nav button[data-tab=contracts]').click();
   }
 
   // ---------- البيانات ----------
+  function accountingAgent(state, o) {
+    const base = { name: 'المحاسبة', role: 'يعرض فواتير أودو ومستحقاتك (شعلة الخدمات). الإصدار وتسجيل الدفعات لاحقاً بموافقتك.' };
+    if (!state.odoo || !state.odoo.hasKey) return { ...base, working: false, alert: '', text: 'اربط أودو من الحسابات' };
+    if (!o) return { ...base, working: false, alert: '', text: 'أتصل بأودو…' };
+    if (o.error) return { ...base, working: false, alert: '!', text: 'تعذّر الاتصال بأودو' };
+    return { ...base, working: true, alert: o.open.count || '', text: o.open.total > 0 ? `مستحقات ${money(o.open.total)}` : 'لا مستحقات مفتوحة' };
+  }
+
   function build(state, ct) {
     const pending = state.posts.filter((p) => p.status === 'pending_review').length;
     const soon = ct ? ct.summary.soon30 + ct.summary.soon90 : 0;
     return [
       { name: 'النشر', role: 'يكتب المنشورات وينشرها على فيسبوك وإنستغرام وتيك توك، وما يحتاج موافقتك يقف عندك.', working: !!state.agentBusy, alert: pending || '', text: state.agentBusy ? 'أكتب منشوراً الآن…' : pending ? 'منشورات تنتظر موافقتك' : 'جاهز للنشر' },
       { name: 'العقود', role: 'يتابع عقود العملاء ويحسب ما ينتهي قريباً وما تجدد تلقائياً.', working: soon > 0, alert: soon || '', text: soon ? 'عقود تنتهي قريباً' : 'كل العقود سليمة' },
-      { name: 'المحاسبة', role: 'سيصدر الفواتير ويسجّل الدفعات في أودو باسم شعلة الخدمات.', working: false, alert: '', text: 'غير مربوط بعد' },
+      accountingAgent(state, last.odoo),
       { name: 'الزيارات', role: 'سيتابع الزيارات المستحقة من برنامج زيارات الفروع.', working: false, alert: '', text: 'قريباً' },
       { name: 'خدمة العملاء', role: 'سيعرض حالة محادثات واتساب (للعرض فقط).', working: false, alert: '', text: 'قريباً' },
     ].map((a) => ({ ...a, color: COL[a.name] }));
@@ -178,8 +197,8 @@ const Office = (() => {
       `<div class="kpi"><b>${working}</b><span>وكلاء يعملون</span></div><div class="kpi ${pend ? 'warn' : ''}"><b>${pend}</b><span>بانتظار موافقتك</span></div><div class="kpi ${soon ? 'warn' : ''}"><b>${soon}</b><span>عقود تنتهي قريباً</span></div>`;
   }
 
-  function update(state, ct) {
-    last = { state, ct };
+  function update(state, ct, odoo) {
+    last = { state, ct, odoo: odoo === undefined ? last.odoo : odoo };
     const prev = layer.children.length;
     agents = build(state, ct);
     layer.innerHTML = layerHtml(); bind();

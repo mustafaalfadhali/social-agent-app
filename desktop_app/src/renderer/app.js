@@ -33,7 +33,7 @@ document.querySelectorAll('nav button').forEach((b) => b.addEventListener('click
 async function refresh() {
   state = await call('state');
   renderHome(); renderLibrary(); renderAccounts();
-  if (typeof Office !== 'undefined') Office.update(state, ctData);
+  if (typeof Office !== 'undefined') Office.update(state, ctData, typeof odooData !== 'undefined' ? odooData : null);
   if (!document.activeElement?.dataset?.cap) renderPosts();
 }
 
@@ -212,8 +212,22 @@ function renderContracts() {
 }
 $('ctSearch').oninput = renderContracts; $('ctFilter').onchange = renderContracts;
 
+// ---- أودو (قراءة فقط) ----
+let odooData = null, odooFetching = false;
+function fillOdoo() { const o = state.odoo; $('odUrl').value = o.url; $('odDb').value = o.db; $('odLogin').value = o.login; $('odStatus').textContent = o.hasKey ? 'المفتاح محفوظ' : ''; }
+async function loadOdoo() {
+  if (!state?.odoo?.hasKey || odooFetching) { if (!state?.odoo?.hasKey) { odooData = null; Office.update(state, ctData, null); } return; }
+  odooFetching = true;
+  try { const r = await window.api.call('odoo:summary'); odooData = r.ok ? r.data : null; if (!r.ok) odooData = { error: r.error }; } finally { odooFetching = false; }
+  Office.update(state, ctData, odooData);
+}
+$('btnOdSave').onclick = async () => { await call('odoo:save', { url: $('odUrl').value, db: $('odDb').value, login: $('odLogin').value, apiKey: $('odKey').value }); $('odKey').value = ''; toast('تم الحفظ'); await refresh(); loadOdoo(); };
+$('btnOdTest').onclick = (e) => withBusy(e.target, async () => { await call('odoo:save', { url: $('odUrl').value, db: $('odDb').value, login: $('odLogin').value, apiKey: $('odKey').value }); $('odKey').value = ''; const r = await call('odoo:test'); toast('اتصال ناجح ✅ ' + r.company); await refresh(); loadOdoo(); });
+$('btnOdOff').onclick = async () => { await call('odoo:disconnect'); odooData = null; await refresh(); fillOdoo(); toast('تم فصل أودو'); };
+
 (async () => {
   await refresh();
+  fillOdoo(); loadOdoo(); setInterval(loadOdoo, 120000);
   loadContracts();
   fillSettings();
   checkClaude();

@@ -17,6 +17,7 @@ const DEFAULTS = {
   },
   meta: { appId: '', appSecret: '', configId: '', pages: [], selectedPageId: '' },
   tiktok: { clientKey: '', clientSecret: '', accessToken: '', refreshToken: '', expiresAt: 0, openId: '', displayName: '' },
+  odoo: { url: '', db: '', login: '', apiKey: '' },
   media: [],   // {id, file, name, addedAt, usedAt}
   posts: [],   // {id, mediaId, caption, status, platforms, results, createdAt, publishedAt}
   log: [],     // {at, msg}
@@ -35,6 +36,7 @@ function init(dir) {
     data.settings.autoPlatforms = { ...DEFAULTS.settings.autoPlatforms, ...(saved.settings || {}).autoPlatforms };
     data.meta = { ...DEFAULTS.meta, ...saved.meta };
     data.tiktok = { ...DEFAULTS.tiktok, ...saved.tiktok };
+    data.odoo = { ...DEFAULTS.odoo, ...saved.odoo };
   } catch {
     data = structuredClone(DEFAULTS);
   }
