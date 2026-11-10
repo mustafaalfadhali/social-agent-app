@@ -103,4 +103,14 @@ async function captionForImage({ imagePath, settings, platforms, extraHint = '' 
   return inner.caption.trim();
 }
 
-module.exports = { findClaude, status, captionForImage };
+// سؤال نصي عام بدون أدوات (يُستخدم لشريط الأوامر).
+async function askText(prompt, settings) {
+  const exe = await findClaude(settings.claudePath);
+  if (!exe) throw new Error('Claude Code غير مثبت');
+  const raw = await run(exe, ['-p', '--output-format', 'json'], { input: prompt, cwd: os.tmpdir(), timeoutMs: 3 * 60 * 1000 });
+  const envelope = extractJson(raw);
+  if (envelope.is_error) throw new Error(envelope.result || 'خطأ من Claude');
+  return String(envelope.result ?? '');
+}
+
+module.exports = { findClaude, status, captionForImage, askText, extractJson };

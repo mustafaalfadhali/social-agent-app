@@ -10,6 +10,7 @@ const tiktok = require('./tiktok');
 const agent = require('./agent');
 const contracts = require('./contracts');
 const odoo = require('./odoo');
+const commander = require('./commander');
 
 app.setPath('userData', path.join(app.getPath('appData'), 'SirajDesktop'));
 const dataDir = app.getPath('userData');
@@ -80,6 +81,7 @@ function handle(name, fn) {
 function registerIpc() {
   handle('state', () => publicState());
   handle('contracts:list', () => contracts.list());
+  handle('assistant:ask', (payload) => commander.ask(payload, store.get()));
   handle('odoo:save', (f) => {
     const d = store.get();
     d.odoo = { url: (f.url || '').trim(), db: (f.db || '').trim(), login: (f.login || '').trim(), apiKey: f.apiKey ? f.apiKey.trim() : d.odoo.apiKey };

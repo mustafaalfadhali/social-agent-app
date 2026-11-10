@@ -186,7 +186,7 @@ const Office = (() => {
       accountingAgent(state, last.odoo),
       { name: 'الزيارات', role: 'سيتابع الزيارات المستحقة من برنامج زيارات الفروع.', working: false, alert: '', text: 'قريباً' },
       { name: 'خدمة العملاء', role: 'سيعرض حالة محادثات واتساب (للعرض فقط).', working: false, alert: '', text: 'قريباً' },
-    ].map((a) => ({ ...a, color: COL[a.name] }));
+    ].map((a) => ({ ...a, color: COL[a.name], text: said[a.name] ? said[a.name] : a.text }));
   }
 
   function kpis(state, ct) {
@@ -207,5 +207,8 @@ const Office = (() => {
   }
 
   setInterval(() => { frame++; if (agents.length) draw(); }, 500);
-  return { update };
+  // فقاعة مؤقتة من الوكيل بعد رد شريط الأوامر
+  const said = {};
+  function say(name, text) { said[name] = text; setTimeout(() => { delete said[name]; if (last.state) update(last.state, last.ct); }, 9000); if (last.state) update(last.state, last.ct); }
+  return { update, say };
 })();

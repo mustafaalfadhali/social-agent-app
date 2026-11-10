@@ -45,7 +45,14 @@
         <div id="officeLayer"></div>
         <aside id="officeDrawer" class="drawer"></aside>
       </div>
-      <p class="muted">اضغط على أي وكيل لتفتح تفاصيله وأزراره. المصباح مضيء عندما يعمل، والفقاعة تعرض ما يفعله الآن.</p>
+      <div class="cmd-wrap">
+        <div id="chatLog" class="chatlog"></div>
+        <form id="cmdBar" class="cmdbar">
+          <input id="cmdInput" autocomplete="off" placeholder="اكتب طلبك للفريق… مثال: كم المستحقات المفتوحة؟ أي عقد ينتهي قريباً؟">
+          <button id="cmdSend" type="submit">إرسال</button>
+        </form>
+        <p class="muted cmd-hint">اضغط على أي وكيل لتفتح تفاصيله. الطلبات التي تغيّر شيئاً تظهر كمقترح ولا تُنفَّذ قبل تفعيل الموافقات.</p>
+      </div>
     </section>
 
     <section id="library" class="tab">

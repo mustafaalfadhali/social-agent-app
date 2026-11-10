@@ -225,6 +225,33 @@ $('btnOdSave').onclick = async () => { await call('odoo:save', { url: $('odUrl')
 $('btnOdTest').onclick = (e) => withBusy(e.target, async () => { await call('odoo:save', { url: $('odUrl').value, db: $('odDb').value, login: $('odLogin').value, apiKey: $('odKey').value }); $('odKey').value = ''; const r = await call('odoo:test'); toast('اتصال ناجح ✅ ' + r.company); await refresh(); loadOdoo(); });
 $('btnOdOff').onclick = async () => { await call('odoo:disconnect'); odooData = null; await refresh(); fillOdoo(); toast('تم فصل أودو'); };
 
+// ---- شريط الأوامر ----
+const chat = [];
+function addChat(role, text, agent, proposal) {
+  chat.push({ role, text, agent, proposal });
+  renderChat();
+}
+function renderChat() {
+  const el = $('chatLog');
+  el.style.display = chat.length ? 'block' : 'none';
+  el.innerHTML = chat.slice(-12).map((m) => m.role === 'user'
+    ? `<div class="msg me">${esc(m.text)}</div>`
+    : `<div class="msg ag"><b class="who">${esc(m.agent || 'المكتب')}</b>${esc(m.text).replace(/\n/g, '<br>')}${m.proposal ? `<div class="prop">📝 مقترح (لم يُنفَّذ): ${esc(m.proposal.summary || '')}</div>` : ''}</div>`).join('');
+  el.scrollTop = el.scrollHeight;
+}
+$('cmdBar').onsubmit = async (e) => {
+  e.preventDefault();
+  const text = $('cmdInput').value.trim(); if (!text) return;
+  $('cmdInput').value = ''; addChat('user', text);
+  const btn = $('cmdSend'); btn.disabled = true; $('cmdInput').disabled = true; addChat('ag', 'أفكر…', 'المكتب');
+  try {
+    const r = await window.api.call('assistant:ask', { text, history: chat.filter((m) => m.text !== 'أفكر…').slice(-8, -1).map((m) => ({ role: m.role === 'user' ? 'user' : 'office', text: m.text })) });
+    chat.pop();
+    if (r.ok) { addChat('ag', r.data.reply, r.data.agent, r.data.proposal); Office.say(r.data.agent, r.data.reply.split('\n')[0].slice(0, 40)); }
+    else addChat('ag', '⚠ ' + (/OAuth|authenticate|login/i.test(r.error) ? 'Claude Code غير مسجّل الدخول. افتح الإعدادات واضغط «تسجيل الدخول».' : r.error), 'المكتب');
+  } finally { btn.disabled = false; $('cmdInput').disabled = false; $('cmdInput').focus(); }
+};
+
 (async () => {
   await refresh();
   fillOdoo(); loadOdoo(); setInterval(loadOdoo, 120000);

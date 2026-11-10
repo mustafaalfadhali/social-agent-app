@@ -74,3 +74,11 @@ dialog::backdrop { background: rgba(0,0,0,.6); }
 .st { margin: 10px 0; }
 .drawer.r { left: auto; right: 0; border-right: 0; border-left: 1px solid var(--line); transform: translateX(100%); } .drawer.r.open { transform: none; } .drawer.r .x { left: auto; right: 10px; }
 .mini { display: grid; gap: 8px; margin: 10px 0; } .mini div { background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; } .mini b { display: block; font-size: 18px; } .mini span { font-size: 12px; color: var(--muted); }
+.cmd-wrap { position: sticky; bottom: 0; background: linear-gradient(transparent, var(--bg) 18px); padding-top: 14px; }
+.chatlog { display: none; max-height: 220px; overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px; margin-bottom: 8px; }
+.msg { padding: 6px 12px; border-radius: 10px; margin: 4px 0; max-width: 80%; line-height: 1.6; }
+.msg.me { background: var(--accent); color: #111; margin-right: 0; margin-left: auto; }
+.msg.ag { background: var(--line); } .msg .who { display: block; font-size: 12px; color: var(--accent); }
+.prop { margin-top: 6px; padding: 6px 10px; background: rgba(234,179,8,.15); border: 1px dashed var(--warn); border-radius: 8px; font-size: 13px; }
+.cmdbar { display: flex; gap: 8px; } .cmdbar input { flex: 1; margin: 0; padding: 12px 16px; font-size: 15px; border-radius: 99px; } .cmdbar button { border-radius: 99px; padding: 0 22px; }
+.cmd-hint { font-size: 12px; margin: 6px 4px 0; }
