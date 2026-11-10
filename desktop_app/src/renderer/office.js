@@ -216,8 +216,9 @@ const Office = (() => {
   function build(state, ct) {
     const pending = state.posts.filter((p) => p.status === 'pending_review').length;
     const soon = ct ? ct.summary.soon30 + ct.summary.soon90 : 0;
+    const pubPage = state.meta && (state.meta.pages || []).find((p) => p.id === state.meta.selectedPageId);
     return [
-      { name: 'النشر', role: 'يكتب المنشورات وينشرها على فيسبوك وإنستغرام وتيك توك، وما يحتاج موافقتك يقف عندك.', working: !!state.agentBusy, alert: pending || '', text: state.agentBusy ? 'أكتب منشوراً الآن…' : pending ? 'منشورات تنتظر موافقتك' : 'جاهز للنشر' },
+      { name: 'النشر', role: 'يكتب المنشورات وينشرها على فيسبوك وإنستغرام وتيك توك، وما يحتاج موافقتك يقف عندك.', working: !!state.agentBusy || !!pubPage, alert: pending || '', text: state.agentBusy ? 'أكتب منشوراً الآن…' : pending ? 'منشورات تنتظر موافقتك' : !pubPage ? 'اربط ميتا من الحسابات' : pubPage.igId ? 'مربوط: فيسبوك + إنستغرام' : 'مربوط: فيسبوك فقط' },
       { name: 'العقود', role: 'يتابع عقود العملاء ويحسب ما ينتهي قريباً وما تجدد تلقائياً.', working: soon > 0, alert: soon || '', text: soon ? 'عقود تنتهي قريباً' : 'كل العقود سليمة' },
       accountingAgent(state, last.odoo),
       visitsAgent(state, last.visits),
