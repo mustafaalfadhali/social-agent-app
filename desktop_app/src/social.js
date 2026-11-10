@@ -89,7 +89,7 @@ async function overview(d, { force = false } = {}) {
   data.facebook = await safe(() => facebook(m, page));
   data.instagram = await safe(() => instagram(m, page));
   data.ads = await safe(() => ads(m));
-  cache = { at: Date.now(), key, data };
+  if (!data.facebook.__error && !data.instagram.__error) cache = { at: Date.now(), key, data }; // لا نخزّن الأخطاء
   return data;
 }
 

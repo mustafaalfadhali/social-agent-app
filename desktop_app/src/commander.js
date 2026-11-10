@@ -30,15 +30,23 @@ async function visitsData(cfg) {
   return visitsCache.data;
 }
 
-const MARKETING_RE = /(سوشال|انستقرام|انستغرام|إنستغرام|فيس ?بوك|فيسبوك|منشور|تسويق|حمل[ةه]|إعلان|اعلان|تفاعل|متابع|وصول|محتوى|تقرير|ميتا|صفحت)/;
+const MARKETING_RE = /(سوشال|انستقرام|انستغرام|إنستغرام|فيس ?بوك|فيسبوك|منشور|تسويق|حمل[ةه]|إعلان|اعلان|ادز|ads|تفاعل|متابع|وصول|محتوى|تقرير|ميتا|meta|صفحت|ربط|الربط|صلاحي|حدّث|حدث|حلل|حلّل|خطة)/i;
 
-async function buildContext(d, text = '') {
+// حالة الربط من الإعدادات المحلية (بلا اتصال بميتا): تتوفر دائماً لتأكيد الربط
+function marketingStatus(d) {
+  const m = d.meta || {}, p = (m.pages || []).find((x) => x.id === m.selectedPageId);
+  return { page_linked: !!p, page: p ? p.name : null, instagram_linked: !!(p && p.igId), instagram: p && p.igUsername ? '@' + p.igUsername : null, ads_token_saved: !!m.userToken };
+}
+
+async function buildContext(d, text = '', history = []) {
   const ct = contracts.list();
   let marketing;
-  if (MARKETING_RE.test(text)) {
+  const recent = [text, ...history.slice(-4).map((h) => h.text)].join(' ');
+  if (MARKETING_RE.test(recent)) {
     try { marketing = await require('./social').overview(d); } catch (e) { marketing = { connected: true, error: e.message }; }
   }
   return {
+    marketing_link_status: marketingStatus(d),
     ...(marketing ? { marketing } : {}),
     today: ct.today,
     contracts: {
@@ -52,7 +60,7 @@ async function buildContext(d, text = '') {
 }
 
 async function ask({ text, history = [] }, d) {
-  const ctx = await buildContext(d, text);
+  const ctx = await buildContext(d, text, history);
   const prompt = [
     'أنت «مكتب سِراج»: فريق من ستة وكلاء لمؤسسة مكافحة حشرات في الرياض (النشر، العقود، المحاسبة، الزيارات، خدمة العملاء، التسويق).',
     'مهمتك: افهم طلب المالك، اختر الوكيل المناسب، وأجب من البيانات المرفقة فقط.',
@@ -65,6 +73,7 @@ async function ask({ text, history = [] }, d) {
     '- بيانات الزيارات في visits (إن كان connected=true): الأرقام شهرية وتُصفَّر آخر الشهر. «تمت X من Y زيارة» = visits_done من visits_required. جدول الزيارات المجدولة قد يكون قديماً (انظر latest_schedule_date)، فلا تتحدث عن زيارات اليوم إن كانت القائمة فارغة إلا بقولك إنه لا يوجد جدول لها. إن كان connected=false فقل إن وكيل الزيارات غير مربوط.',
     '- وكيل «خدمة العملاء» غير مربوط بعد: قل ذلك إن سُئلت عنه.',
     '- وكيل «التسويق» هو خبير السوشال ميديا والحملات (منفصل عن «النشر» الذي يكتب وينشر المنشورات فقط). اجعل agent = «التسويق» لأي طلب عن الأداء أو التقارير أو خطة المحتوى أو الحملات والإعلانات أو المتابعين. إن وُجد marketing في البيانات فهو قراءة حقيقية من ميتا: facebook وinstagram (المتابعون، أفضل المنشورات top، أفضل يوم وساعة timing، عدد المنشورات آخر 30 يوماً) وads (الحملات والإنفاق آخر 30 يوماً). score = تفاعل مرجّح (إعجاب=1، تعليق=2، مشاركة=3).',
+    '- marketing_link_status يبيّن حالة الربط الحقيقية من الإعدادات (page_linked, instagram_linked, ads_token_saved). استخدمه لتأكيد حالة الربط. وإن كان ads_token_saved=false فالإعلانات غير مقروءة لأن المالك لم يعد الربط بعد إضافة ads_read. وإن ظهر في marketing خطأ فانقله بنصه كما هو.',
     '- في طلبات التحليل أو التقرير الأسبوعي أو خطة المحتوى أو الحملات: يجوز أن يصل الرد إلى 20 سطراً، منظماً بنقاط قصيرة، مبنياً على الأرقام وحدها، ثم 3 توصيات عملية محددة. لا تخترع أرقاماً؛ وإن كان ads غير مربوط فقل إن بيانات الإعلانات غير متاحة وأعطِ توصية عضوية فقط.',
     '- خطة المحتوى: اقترح أياماً وأفكاراً مناسبة لشركة مكافحة حشرات في الرياض (مواسم النمل والبعوض والصراصير، المطاعم والمنشآت، نصائح وقاية)، مع نوع كل منشور (صورة/ريل) وجملة افتتاحية. لا تذكر أسعاراً ولا وعوداً مضمونة.',
     '- الحملات الإعلانية: اقترح هدف الحملة والجمهور (الرياض + الأحياء) والميزانية اليومية وسبب الاختيار كـ proposal من نوع campaign، وقل بوضوح إنه مقترح ولا يُنفَّذ ولا يُصرف شيء قبل موافقتك وإنشائه في Ads Manager.',
