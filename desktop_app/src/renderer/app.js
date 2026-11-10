@@ -236,7 +236,7 @@ function renderChat() {
   el.style.display = chat.length ? 'block' : 'none';
   el.innerHTML = chat.slice(-12).map((m) => m.role === 'user'
     ? `<div class="msg me">${esc(m.text)}</div>`
-    : `<div class="msg ag"><b class="who">${esc(m.agent || 'المكتب')}</b>${esc(m.text).replace(/\n/g, '<br>')}${m.proposal ? `<div class="prop">📝 مقترح (لم يُنفَّذ): ${esc(m.proposal.summary || '')}</div>` : ''}</div>`).join('');
+    : `<div class="msg off"><b class="who">${esc(m.agent || 'المكتب')}</b>${esc(m.text).replace(/\n/g, '<br>')}${m.proposal ? `<div class="prop">📝 مقترح (لم يُنفَّذ): ${esc(m.proposal.summary || '')}</div>` : ''}</div>`).join('');
   el.scrollTop = el.scrollHeight;
 }
 $('cmdBar').onsubmit = async (e) => {
