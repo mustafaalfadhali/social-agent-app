@@ -150,13 +150,40 @@ const Office = (() => {
     });
   }
 
+  const num = (n) => new Intl.NumberFormat('en-US').format(n || 0);
+  async function loadMk(el) {
+    const r = await window.api.call('social:overview');
+    if (!el.isConnected) return;
+    if (!r.ok) { el.innerHTML = `<p class="muted">⚠ ${esc2(r.error)}</p>`; return; }
+    const s = r.data;
+    if (!s.connected) { el.innerHTML = '<p class="muted">اربط ميتا من الحسابات لتظهر الإحصائيات.</p>'; return; }
+    const fb = s.facebook, ig = s.instagram, ad = s.ads;
+    const cell = (v, lab) => `<div><b>${v}</b><span>${lab}</span></div>`;
+    let h = '<div class="mini">';
+    h += fb && !fb.__error ? cell(num(fb.followers), 'متابعو فيسبوك') : cell('—', 'فيسبوك');
+    h += ig && ig.connected ? cell(num(ig.followers), 'متابعو انستقرام') : cell('—', 'انستقرام');
+    h += fb && !fb.__error ? cell(fb.posts_last_30_days, 'منشورات فيسبوك (30 يوماً)') : '';
+    h += '</div>';
+    const best = [fb, ig].filter((x) => x && x.timing).map((x) => `${x.timing.best_day} ${x.timing.best_hour}`)[0];
+    if (best) h += `<p class="muted">أفضل وقت للنشر حسب تفاعلك: ${esc2(best)}</p>`;
+    const top = ig && ig.top && ig.top[0];
+    if (top) h += `<p class="muted">أفضل منشور في انستقرام: ${esc2(top.text.slice(0, 50))} (${num(top.likes)} إعجاب)</p>`;
+    h += ad && ad.connected ? `<p class="muted">الإعلانات: ${ad.accounts.length} حساب مقروء</p>` : '<p class="muted">الإعلانات غير مربوطة بعد.</p>';
+    if (fb && fb.__error) h += `<p class="muted">⚠ فيسبوك: ${esc2(fb.__error)}</p>`;
+    if (ig && ig.__error) h += `<p class="muted">⚠ انستقرام: ${esc2(ig.__error)}</p>`;
+    el.innerHTML = h;
+  }
+
   function openDrawer(i) {
     const a = agents[i], st = last.state, ct = last.ct;
     let body = `<p class="muted">${esc2(a.role)}</p><div class="st"><span class="chip ${a.working ? 'ok' : ''}">${a.working ? 'يعمل الآن' : 'جاهز'}</span> ${esc2(a.text)}</div>`;
     if (a.name === 'النشر') {
       const pend = st.posts.filter((p) => p.status === 'pending_review').length;
       const logs = st.log.slice(0, 5).map((l) => `<li>${esc2(l.msg)}</li>`).join('') || '<li class="muted">لا نشاط بعد</li>';
-      body += `<div class="row"><button id="odRun">تشغيل الآن</button><button class="ghost" id="odPosts">المنشورات${pend ? ' (' + pend + ')' : ''}</button></div><h4>آخر النشاط</h4><ul>${logs}</ul>`;
+      body += `<div class="row"><button id="odRun">تشغيل الآن</button><button class="ghost" id="odPosts">المنشورات${pend ? ' (' + pend + ')' : ''}</button></div>` +
+        `<h4>خبير التسويق</h4><div id="odMk"><p class="muted">جارِ قراءة إحصائيات ميتا…</p></div>` +
+        `<div class="row"><button class="ghost" data-ask="اكتب تقرير السوشال ميديا الأسبوعي: الأرقام وأفضل المنشورات وأفضل وقت للنشر مع 3 توصيات">تقرير أسبوعي</button><button class="ghost" data-ask="اقترح خطة محتوى لأسبوعين مناسبة لنشاطنا بناءً على أداء منشوراتنا">خطة محتوى</button><button class="ghost" data-ask="حلّل الحملات الإعلانية والإنفاق آخر 30 يوماً واقترح حملة جديدة بميزانية وجمهور">الإعلانات</button></div>` +
+        `<h4>آخر النشاط</h4><ul>${logs}</ul>`;
     } else if (a.name === 'العقود') {
       const soon = ct ? ct.items.filter((c) => c.days >= 0 && c.days <= 90) : [];
       body += `<div class="row"><button id="odCt">فتح العقود</button></div><h4>تنتهي خلال 90 يوماً</h4><ul>${soon.map((c) => `<li>${esc2(c.client)}<br><span class="muted">باقي ${c.days} يوم · ${esc2(c.end)}</span></li>`).join('') || '<li class="muted">لا شيء</li>'}</ul>`;
@@ -186,6 +213,8 @@ const Office = (() => {
     drawer.classList.add('open');
     drawer.querySelector('#odX').onclick = () => { drawer.classList.remove('open'); selected = null; draw(); };
     const g = (id) => drawer.querySelector(id);
+    drawer.querySelectorAll('[data-ask]').forEach((b) => { b.onclick = () => { $('cmdInput').value = b.dataset.ask; drawer.classList.remove('open'); $('cmdBar').requestSubmit(); }; });
+    if (g('#odMk')) loadMk(g('#odMk'));
     if (g('#odRun')) g('#odRun').onclick = (e) => withBusy(e.target, async () => { toast('جارِ التوليد…'); await call('agent:runNow'); await refresh(); });
     if (g('#odPosts')) g('#odPosts').onclick = () => document.querySelector('nav button[data-tab=posts]').click();
     if (g('#odGo')) g('#odGo').onclick = () => document.querySelector('nav button[data-tab=accounts]').click();

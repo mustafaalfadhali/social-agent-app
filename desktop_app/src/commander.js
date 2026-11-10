@@ -30,9 +30,16 @@ async function visitsData(cfg) {
   return visitsCache.data;
 }
 
-async function buildContext(d) {
+const MARKETING_RE = /(سوشال|انستقرام|انستغرام|إنستغرام|فيس ?بوك|فيسبوك|منشور|تسويق|حمل[ةه]|إعلان|اعلان|تفاعل|متابع|وصول|محتوى|تقرير|ميتا|صفحت)/;
+
+async function buildContext(d, text = '') {
   const ct = contracts.list();
+  let marketing;
+  if (MARKETING_RE.test(text)) {
+    try { marketing = await require('./social').overview(d); } catch (e) { marketing = { connected: true, error: e.message }; }
+  }
   return {
+    ...(marketing ? { marketing } : {}),
     today: ct.today,
     contracts: {
       summary: ct.summary,
@@ -45,7 +52,7 @@ async function buildContext(d) {
 }
 
 async function ask({ text, history = [] }, d) {
-  const ctx = await buildContext(d);
+  const ctx = await buildContext(d, text);
   const prompt = [
     'أنت «مكتب سِراج»: فريق من خمسة وكلاء لمؤسسة مكافحة حشرات في الرياض (النشر، العقود، المحاسبة، الزيارات، خدمة العملاء).',
     'مهمتك: افهم طلب المالك، اختر الوكيل المناسب، وأجب من البيانات المرفقة فقط.',
@@ -57,6 +64,10 @@ async function ask({ text, history = [] }, d) {
     '- أنت لا تنفّذ أي تغيير. إذا طلب المالك ما يغيّر شيئاً (إصدار فاتورة، تسجيل دفعة، نشر منشور، تعديل عقد) فأعد proposal يلخّص ما سيُنفَّذ، وقل في الرد إنه مقترح ينتظر تفعيل الموافقات.',
     '- بيانات الزيارات في visits (إن كان connected=true): الأرقام شهرية وتُصفَّر آخر الشهر. «تمت X من Y زيارة» = visits_done من visits_required. جدول الزيارات المجدولة قد يكون قديماً (انظر latest_schedule_date)، فلا تتحدث عن زيارات اليوم إن كانت القائمة فارغة إلا بقولك إنه لا يوجد جدول لها. إن كان connected=false فقل إن وكيل الزيارات غير مربوط.',
     '- وكيل «خدمة العملاء» غير مربوط بعد: قل ذلك إن سُئلت عنه.',
+    '- أنت أيضاً «خبير السوشال ميديا والحملات» تحت وكيل النشر. إن وُجد marketing في البيانات فهو قراءة حقيقية من ميتا: facebook وinstagram (المتابعون، أفضل المنشورات top، أفضل يوم وساعة timing، عدد المنشورات آخر 30 يوماً) وads (الحملات والإنفاق آخر 30 يوماً). score = تفاعل مرجّح (إعجاب=1، تعليق=2، مشاركة=3).',
+    '- في طلبات التحليل أو التقرير الأسبوعي أو خطة المحتوى أو الحملات: يجوز أن يصل الرد إلى 20 سطراً، منظماً بنقاط قصيرة، مبنياً على الأرقام وحدها، ثم 3 توصيات عملية محددة. لا تخترع أرقاماً؛ وإن كان ads غير مربوط فقل إن بيانات الإعلانات غير متاحة وأعطِ توصية عضوية فقط.',
+    '- خطة المحتوى: اقترح أياماً وأفكاراً مناسبة لشركة مكافحة حشرات في الرياض (مواسم النمل والبعوض والصراصير، المطاعم والمنشآت، نصائح وقاية)، مع نوع كل منشور (صورة/ريل) وجملة افتتاحية. لا تذكر أسعاراً ولا وعوداً مضمونة.',
+    '- الحملات الإعلانية: اقترح هدف الحملة والجمهور (الرياض + الأحياء) والميزانية اليومية وسبب الاختيار كـ proposal من نوع campaign، وقل بوضوح إنه مقترح ولا يُنفَّذ ولا يُصرف شيء قبل موافقتك وإنشائه في Ads Manager.',
     '- إذا طلب المالك نسخة PDF لفاتورة أو كشف حساب عميل فأعد action: {"type":"invoice_pdf","invoice":"INV/2026/00061"} لرقم محدد، أو {"type":"invoice_pdf","customer":"اسم العميل"} لآخر فاتورة له، أو {"type":"statement_pdf","customer":"اسم العميل"} للكشف، وقل في الرد «جارِ تجهيز الملف». لا تقل إنك عاجز عن ذلك.',
     '',
     'البيانات (JSON):',
@@ -65,7 +76,7 @@ async function ask({ text, history = [] }, d) {
     history.length ? 'المحادثة السابقة:\n' + history.slice(-6).map((m) => `${m.role === 'user' ? 'المالك' : 'المكتب'}: ${m.text}`).join('\n') : '',
     `طلب المالك الآن: ${text}`,
     '',
-    `أعد فقط JSON بدون أي نص آخر: {"agent": "واحد من ${AGENTS.join(' | ')}", "reply": "...", "proposal": null أو {"type": "payment|invoice|post|contract", "summary": "..."}, "action": null أو {"type": "invoice_pdf|statement_pdf", ...}}`,
+    `أعد فقط JSON بدون أي نص آخر: {"agent": "واحد من ${AGENTS.join(' | ')}", "reply": "...", "proposal": null أو {"type": "payment|invoice|post|contract|campaign", "summary": "..."}, "action": null أو {"type": "invoice_pdf|statement_pdf", ...}}`,
   ].filter((x) => x !== '').join('\n');
   const raw = await claude.askText(prompt, d.settings);
   const j = claude.extractJson(raw);

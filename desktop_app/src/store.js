@@ -11,7 +11,7 @@ const dec = (v) => {
   if (typeof v !== 'string' || !v.startsWith(PREFIX)) return v;
   try { return safeStorage.decryptString(Buffer.from(v.slice(PREFIX.length), 'base64')); } catch { return ''; }
 };
-const SECRETS = [['meta', 'appSecret'], ['tiktok', 'clientSecret'], ['tiktok', 'accessToken'], ['tiktok', 'refreshToken'], ['odoo', 'apiKey'], ['telegram', 'token'], ['visits', 'token']];
+const SECRETS = [['meta', 'appSecret'], ['meta', 'userToken'], ['tiktok', 'clientSecret'], ['tiktok', 'accessToken'], ['tiktok', 'refreshToken'], ['odoo', 'apiKey'], ['telegram', 'token'], ['visits', 'token']];
 function transform(obj, fn) {
   for (const [a, b] of SECRETS) if (obj[a] && b in obj[a]) obj[a][b] = fn(obj[a][b]);
   if (obj.meta && Array.isArray(obj.meta.pages)) obj.meta.pages.forEach((p) => { if (p && 'token' in p) p.token = fn(p.token); });
@@ -31,7 +31,7 @@ const DEFAULTS = {
     claudePath: '',
     tiktokPrivacy: 'SELF_ONLY',
   },
-  meta: { appId: '', appSecret: '', configId: '', pages: [], selectedPageId: '' },
+  meta: { appId: '', appSecret: '', configId: '', userToken: '', pages: [], selectedPageId: '' },
   tiktok: { clientKey: '', clientSecret: '', accessToken: '', refreshToken: '', expiresAt: 0, openId: '', displayName: '' },
   odoo: { url: '', db: '', login: '', apiKey: '' },
   telegram: { token: '', chatId: 0, username: '' },

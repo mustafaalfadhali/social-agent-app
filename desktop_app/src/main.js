@@ -241,6 +241,7 @@ function registerIpc() {
   });
   handle('meta:connect', async () => { await meta.connect(store.get().meta); store.save(); store.log('🔗 تم ربط Meta'); });
   handle('meta:connectToken', async (t) => { await meta.connectWithToken(store.get().meta, sec.str(t, 1000).trim()); store.save(); store.log('🔗 تم ربط Meta'); });
+  handle('social:overview', (force) => require('./social').overview(store.get(), { force: !!force }));
   handle('meta:selectPage', (id) => { const m = store.get().meta; sec.str(id, 60); if (!m.pages.some((p) => p.id === id)) throw new Error('صفحة غير معروفة'); m.selectedPageId = id; store.save(); });
 
   handle('tiktok:saveApp', (f) => {

@@ -73,13 +73,16 @@ async function connect(meta) {
   const t = await graph('GET', '/oauth/access_token', {
     client_id: meta.appId, client_secret: meta.appSecret, redirect_uri: REDIRECT, code,
   });
-  await loadPages(await longLived(meta, t.access_token), meta);
+  const ut = await longLived(meta, t.access_token);
+  await loadPages(ut, meta);
+  meta.userToken = ut; // لقراءة الإعلانات (ads_read) فقط
 }
 
 // Fallback: user pastes a user access token (e.g. from Graph API Explorer).
 async function connectWithToken(meta, token) {
   const t = meta.appId && meta.appSecret ? await longLived(meta, token) : token;
   await loadPages(t, meta);
+  meta.userToken = t;
 }
 
 function selectedPage(meta) {
@@ -145,4 +148,4 @@ async function postStats(meta, platform, postId) {
   return null;
 }
 
-module.exports = { connect, connectWithToken, publishFacebook, publishInstagram, postStats, REDIRECT };
+module.exports = { connect, connectWithToken, publishFacebook, publishInstagram, postStats, graph, REDIRECT };
