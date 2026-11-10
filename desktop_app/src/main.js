@@ -114,7 +114,8 @@ function registerIpc() {
         fs.mkdirSync(docsDir, { recursive: true });
         fs.writeFileSync(path.join(docsDir, id + '.pdf'), f.pdf, { mode: 0o600 });
         r.doc = { id, name: f.name, title: f.title };
-      } catch (e) { r.reply += '\n⚠ ' + e.message; }
+        r.reply = f.summary;
+      } catch (e) { r.reply = '⚠ ' + e.message; }
       delete r.action;
     }
     return r;

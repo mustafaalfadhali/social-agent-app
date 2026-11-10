@@ -141,7 +141,7 @@ async function invoiceDoc(cfg, name) {
   const c = client(cfg);
   const have = await c.call('account.move', 'fields_get', [], { attributes: ['type'] });
   const fields = ['id', 'name', 'partner_id', 'invoice_date', 'invoice_date_due', 'invoice_line_ids', 'payment_reference', 'amount_untaxed', 'amount_tax',
-    'amount_total', 'state', 'partner_bank_id', ...['delivery_date', 'l10n_sa_qr_code_str'].filter((f) => f in have)];
+    'amount_total', 'state', 'payment_state', 'partner_bank_id', ...['delivery_date', 'l10n_sa_qr_code_str'].filter((f) => f in have)];
   const ms = await c.call('account.move', 'search_read', [[['move_type', '=', 'out_invoice'], ['name', '=', name]]], { fields, limit: 1 });
   if (!ms.length) throw new Error('لا توجد فاتورة بالرقم ' + name);
   const m = ms[0];

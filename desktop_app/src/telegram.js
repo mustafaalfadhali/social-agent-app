@@ -124,11 +124,14 @@ function create({ store, dataDir, commander, payments, log, api: apiOverride }) 
     history.push({ role: 'user', text }); if (history.length > 8) history.shift();
     const r = await commander.ask({ text, history: history.slice(0, -1) }, store.get());
     history.push({ role: 'office', text: r.reply }); if (history.length > 8) history.shift();
-    await send(m.chat.id, `${r.agent === 'عام' ? '' : '«' + r.agent + '»\n'}${r.reply}${r.proposal ? '\n\n📝 مقترح (لم يُنفَّذ): ' + (r.proposal.summary || '') : ''}`);
-    if (r.action) {
-      const f = await documents.fulfill(r.action, store.get(), path.join(dataDir, 'tmp'));
-      await sendDocument(m.chat.id, f.pdf, f.name, f.title);
+    if (r.action) { // طلب مستند: نرسل الملف بوصف مكتوب من بياناته الفعلية (لا من نص النموذج)
+      try {
+        const f = await documents.fulfill(r.action, store.get(), path.join(dataDir, 'tmp'));
+        await sendDocument(m.chat.id, f.pdf, f.name, f.summary || f.title);
+      } catch (e) { await send(m.chat.id, '⚠ ' + redact(e.message).slice(0, 600)); }
+      return;
     }
+    await send(m.chat.id, `${r.agent === 'عام' ? '' : '«' + r.agent + '»\n'}${r.reply}${r.proposal ? '\n\n📝 مقترح (لم يُنفَّذ): ' + (r.proposal.summary || '') : ''}`);
   }
 
   async function onCallback(q) {
