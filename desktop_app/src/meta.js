@@ -7,7 +7,7 @@ const { PORT, waitForCode } = require('./oauth');
 
 const V = 'v21.0';
 const GRAPH = `https://graph.facebook.com/${V}`;
-const REDIRECT = "https://branches.mustafa-server.vip/siraj-cb/meta";
+const REDIRECT = "https://siraj-relay.mustafalive2022.workers.dev/meta";
 const SCOPES = [
   'pages_show_list', 'pages_manage_posts', 'pages_read_engagement', 'read_insights',
   'instagram_basic', 'instagram_content_publish', 'instagram_manage_insights', 'business_management',
