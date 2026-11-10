@@ -40,6 +40,7 @@ async function ask({ text, history = [] }, d) {
     '- التاريخ الماضي في العقود يعني «تم التجديد» وليس «منتهياً».',
     '- أنت لا تنفّذ أي تغيير. إذا طلب المالك ما يغيّر شيئاً (إصدار فاتورة، تسجيل دفعة، نشر منشور، تعديل عقد) فأعد proposal يلخّص ما سيُنفَّذ، وقل في الرد إنه مقترح ينتظر تفعيل الموافقات.',
     '- الوكيل «الزيارات» و«خدمة العملاء» غير مربوطين بعد: قل ذلك إن سُئلت عنهما.',
+    '- إذا طلب المالك نسخة PDF لفاتورة أو كشف حساب عميل فأعد action: {"type":"invoice_pdf","invoice":"INV/2026/00061"} لرقم محدد، أو {"type":"invoice_pdf","customer":"اسم العميل"} لآخر فاتورة له، أو {"type":"statement_pdf","customer":"اسم العميل"} للكشف، وقل في الرد «جارِ تجهيز الملف». لا تقل إنك عاجز عن ذلك.',
     '',
     'البيانات (JSON):',
     JSON.stringify(ctx),
@@ -47,11 +48,13 @@ async function ask({ text, history = [] }, d) {
     history.length ? 'المحادثة السابقة:\n' + history.slice(-6).map((m) => `${m.role === 'user' ? 'المالك' : 'المكتب'}: ${m.text}`).join('\n') : '',
     `طلب المالك الآن: ${text}`,
     '',
-    `أعد فقط JSON بدون أي نص آخر: {"agent": "واحد من ${AGENTS.join(' | ')}", "reply": "...", "proposal": null أو {"type": "payment|invoice|post|contract", "summary": "..."}}`,
+    `أعد فقط JSON بدون أي نص آخر: {"agent": "واحد من ${AGENTS.join(' | ')}", "reply": "...", "proposal": null أو {"type": "payment|invoice|post|contract", "summary": "..."}, "action": null أو {"type": "invoice_pdf|statement_pdf", ...}}`,
   ].filter((x) => x !== '').join('\n');
   const raw = await claude.askText(prompt, d.settings);
   const j = claude.extractJson(raw);
-  return { agent: AGENTS.includes(j.agent) ? j.agent : 'عام', reply: String(j.reply || '').trim() || 'لم أفهم الطلب.', proposal: j.proposal || null };
+  let action = null;
+  try { action = j.action ? require('./documents').validate(j.action) : null; } catch { action = null; }
+  return { agent: AGENTS.includes(j.agent) ? j.agent : 'عام', reply: String(j.reply || '').trim() || 'لم أفهم الطلب.', proposal: j.proposal || null, action };
 }
 
 module.exports = { ask };

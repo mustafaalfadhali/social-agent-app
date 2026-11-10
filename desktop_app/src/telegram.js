@@ -4,6 +4,7 @@
 const crypto = require('crypto');
 const path = require('path');
 const sec = require('./security');
+const documents = require('./documents');
 
 const API = 'https://api.telegram.org';
 const TOKEN_RE = /^\d{6,12}:[A-Za-z0-9_-]{30,50}$/;
@@ -38,6 +39,20 @@ function create({ store, dataDir, commander, payments, log, api: apiOverride }) 
     const res = await fetch(`${API}/file/bot${cfg().token}/${f.file_path}`, { signal: AbortSignal.timeout(60000), redirect: 'error' });
     if (!res.ok) throw new Error('تعذّر تنزيل الملف');
     return Buffer.from(await res.arrayBuffer());
+  }
+
+  async function sendDocument(chatId, buf, filename, caption) {
+    if (apiOverride) return apiOverride('sendDocument', { chat_id: chatId, filename, size: buf.length, caption });
+    const token = cfg().token;
+    if (!TOKEN_RE.test(token)) throw new Error('مفتاح تيليجرام غير صالح');
+    const fd = new FormData();
+    fd.append('chat_id', String(chatId)); fd.append('caption', String(caption || '').slice(0, 900));
+    fd.append('document', new Blob([buf], { type: 'application/pdf' }), filename);
+    let res;
+    try { res = await fetch(`${API}/bot${token}/sendDocument`, { method: 'POST', body: fd, signal: AbortSignal.timeout(90000), redirect: 'error' }); }
+    catch (e) { throw new Error(redact(e.message || 'تعذّر إرسال الملف')); }
+    const j = await res.json().catch(() => ({}));
+    if (!j.ok) throw new Error(redact(j.description || 'تعذّر إرسال الملف'));
   }
 
   const send = (chatId, text, markup) => api('sendMessage', { chat_id: chatId, text: String(text).slice(0, 3800), ...(markup ? { reply_markup: markup } : {}) });
@@ -110,6 +125,10 @@ function create({ store, dataDir, commander, payments, log, api: apiOverride }) 
     const r = await commander.ask({ text, history: history.slice(0, -1) }, store.get());
     history.push({ role: 'office', text: r.reply }); if (history.length > 8) history.shift();
     await send(m.chat.id, `${r.agent === 'عام' ? '' : '«' + r.agent + '»\n'}${r.reply}${r.proposal ? '\n\n📝 مقترح (لم يُنفَّذ): ' + (r.proposal.summary || '') : ''}`);
+    if (r.action) {
+      const f = await documents.fulfill(r.action, store.get(), path.join(dataDir, 'tmp'));
+      await sendDocument(m.chat.id, f.pdf, f.name, f.title);
+    }
   }
 
   async function onCallback(q) {

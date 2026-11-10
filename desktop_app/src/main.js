@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, Tray, Menu, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Tray, Menu, nativeImage, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -13,6 +13,7 @@ const odoo = require('./odoo');
 const commander = require('./commander');
 const payments = require('./payments');
 const telegramBot = require('./telegram');
+const documents = require('./documents');
 let tg;
 const sec = require('./security');
 
@@ -21,6 +22,7 @@ const TEST_DIR = !app.isPackaged && process.env.SIRAJ_TEST_DIR;
 app.setPath('userData', TEST_DIR || path.join(app.getPath('appData'), 'SirajDesktop'));
 const dataDir = app.getPath('userData');
 const mediaDir = path.join(dataDir, 'media');
+const docsDir = path.join(dataDir, 'documents');
 
 if (!TEST_DIR && !app.requestSingleInstanceLock()) app.quit();
 
@@ -104,7 +106,24 @@ function registerIpc() {
       const r = await payments.propose({ file, name: path.basename(file) }, store.get(), store);
       return { agent: 'المحاسبة', reply: r.reply, proposal: r.proposal };
     }
-    return commander.ask({ text: sec.str(p.text, 2000), history }, store.get());
+    const r = await commander.ask({ text: sec.str(p.text, 2000), history }, store.get());
+    if (r.action) {
+      try {
+        const f = await documents.fulfill(r.action, store.get(), path.join(dataDir, 'tmp'));
+        const id = crypto.randomUUID();
+        fs.mkdirSync(docsDir, { recursive: true });
+        fs.writeFileSync(path.join(docsDir, id + '.pdf'), f.pdf, { mode: 0o600 });
+        r.doc = { id, name: f.name, title: f.title };
+      } catch (e) { r.reply += '\n⚠ ' + e.message; }
+      delete r.action;
+    }
+    return r;
+  });
+  handle('doc:open', async (id) => {
+    const file = path.join(docsDir, sec.uuid(id) + '.pdf');
+    if (!fs.existsSync(file)) throw new Error('الملف غير موجود (يُحذف بعد 7 أيام)');
+    const err = await shell.openPath(file);
+    if (err) throw new Error(err);
   });
   handle('telegram:save', (t) => tg.connect(t));
   handle('telegram:pair', () => tg.startPairing());
@@ -232,6 +251,7 @@ app.whenReady().then(() => {
   agent.setMediaDir(mediaDir);
   registerIpc();
   payments.cleanup(dataDir);
+  try { for (const f of fs.readdirSync(docsDir)) { const p = path.join(docsDir, f); if (Date.now() - fs.statSync(p).mtimeMs > 7 * 86400000) fs.rmSync(p, { force: true }); } } catch { /* لا مجلد بعد */ }
   tg = telegramBot.create({ store, dataDir, commander, payments, log: (m) => store.log(m) });
   tg.start();
   contracts.init({ desktop: app.getPath('desktop'), userData: app.getPath('userData'), log: (m) => store.log(m) });

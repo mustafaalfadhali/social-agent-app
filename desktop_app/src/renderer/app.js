@@ -311,6 +311,8 @@ function payCard(ref) {
     <button type="button" class="ghost" data-act="no" data-id="${esc(p.id)}">رفض</button></div></div>`;
 }
 $('chatLog').addEventListener('click', async (e) => {
+  const d = e.target.closest('button[data-doc]');
+  if (d) { try { await call('doc:open', d.dataset.doc); } catch { /* call() يعرض الخطأ */ } return; }
   const b = e.target.closest('button[data-act]'); if (!b) return;
   const { act, id, inv } = b.dataset;
   const p = (state?.proposals || []).find((x) => x.id === id);
@@ -330,8 +332,8 @@ $('chatLog').addEventListener('click', async (e) => {
 
 // ---- شريط الأوامر ----
 const chat = [];
-function addChat(role, text, agent, proposal) {
-  chat.push({ role, text, agent, proposal });
+function addChat(role, text, agent, proposal, doc) {
+  chat.push({ role, text, agent, proposal, doc });
   renderChat();
 }
 function renderChat() {
@@ -339,7 +341,7 @@ function renderChat() {
   el.style.display = chat.length ? 'block' : 'none';
   el.innerHTML = chat.slice(-12).map((m) => m.role === 'user'
     ? `<div class="msg me">${esc(m.text)}</div>`
-    : `<div class="msg off"><b class="who">${esc(m.agent || 'المكتب')}</b>${esc(m.text).replace(/\n/g, '<br>')}${m.proposal ? (m.proposal.type === 'payment' ? payCard(m.proposal) : `<div class="prop">📝 مقترح (لم يُنفَّذ): ${esc(m.proposal.summary || '')}</div>`) : ''}</div>`).join('');
+    : `<div class="msg off"><b class="who">${esc(m.agent || 'المكتب')}</b>${esc(m.text).replace(/\n/g, '<br>')}${m.doc ? `<div class="row"><button type="button" class="ghost" data-doc="${esc(m.doc.id)}">📄 فتح: ${esc(m.doc.title)}</button></div>` : ''}${m.proposal ? (m.proposal.type === 'payment' ? payCard(m.proposal) : `<div class="prop">📝 مقترح (لم يُنفَّذ): ${esc(m.proposal.summary || '')}</div>`) : ''}</div>`).join('');
   el.scrollTop = el.scrollHeight;
 }
 $('cmdBar').onsubmit = async (e) => {
@@ -353,7 +355,7 @@ $('cmdBar').onsubmit = async (e) => {
   try {
     const r = await window.api.call('assistant:ask', { text, attachments: att ? [att.id] : [], history: chat.filter((m) => m.text !== 'أفكر…').slice(-8, -1).map((m) => ({ role: m.role === 'user' ? 'user' : 'office', text: m.text })) });
     chat.pop();
-    if (r.ok) { addChat('ag', r.data.reply, r.data.agent, r.data.proposal); Office.say(r.data.agent, r.data.reply.split('\n')[0].slice(0, 40)); }
+    if (r.ok) { addChat('ag', r.data.reply, r.data.agent, r.data.proposal, r.data.doc); Office.say(r.data.agent, r.data.reply.split('\n')[0].slice(0, 40)); }
     else addChat('off', '⚠ تعذّر الرد من Claude Code: ' + r.error + (/OAuth|authenticate|login/i.test(r.error) ? '\nسجّل الدخول (/login في نافذة Claude) ثم اضغط «فحص الدخول» في الرئيسية.' : ''), 'المكتب');
   } finally { btn.disabled = false; $('cmdInput').disabled = false; $('cmdInput').focus(); }
 };
