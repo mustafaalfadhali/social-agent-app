@@ -1,5 +1,7 @@
 // اتصال أودو (JSON-RPC) — المرحلة 1: قراءة فقط. أي دالة غير مسموحة تُرفض قبل الإرسال.
 const READ_ONLY = new Set(['search_read', 'read_group', 'search_count', 'read']);
+// الكتابة الوحيدة المسموحة في البرنامج كله: معالج تسجيل الدفعات (إنشاء المعالج ثم تنفيذه).
+const WRITE_ALLOWED = { 'account.payment.register': new Set(['create', 'action_create_payments']) };
 
 // يقبل https فقط (و http للجهاز المحلي)، بدون بيانات دخول داخل الرابط، ويُرجع الأصل (origin) فقط.
 function checkUrl(raw) {
@@ -35,7 +37,11 @@ function client(cfg) {
     if (!READ_ONLY.has(method)) throw new Error('عملية غير مسموحة (قراءة فقط): ' + method);
     return rpc(cfg.url, 'object', 'execute_kw', [cfg.db, await auth(), cfg.apiKey, model, method, args, kwargs]);
   };
-  return { call, auth };
+  const callWrite = async (model, method, args, kwargs = {}) => {
+    if (!(WRITE_ALLOWED[model] && WRITE_ALLOWED[model].has(method))) throw new Error('عملية كتابة غير مسموحة: ' + model + '.' + method);
+    return rpc(cfg.url, 'object', 'execute_kw', [cfg.db, await auth(), cfg.apiKey, model, method, args, kwargs]);
+  };
+  return { call, callWrite, auth };
 }
 
 async function test(cfg) {
@@ -73,4 +79,40 @@ async function summary(cfg, now = new Date()) {
   };
 }
 
-module.exports = { test, summary, checkUrl };
+// ---------- قراءة: الفواتير المفتوحة ودفاتر البنك ----------
+async function openInvoices(cfg) {
+  const c = client(cfg);
+  const rows = await c.call('account.move', 'search_read', [[['move_type', '=', 'out_invoice'], ['state', '=', 'posted'], ['amount_residual', '>', 0]]],
+    { fields: ['name', 'partner_id', 'invoice_date', 'amount_total', 'amount_residual', 'payment_state'], order: 'invoice_date asc, id asc', limit: 300 });
+  return rows.map((i) => ({ id: i.id, name: i.name, partnerId: i.partner_id ? i.partner_id[0] : 0, partner: i.partner_id ? i.partner_id[1] : '—',
+    date: i.invoice_date, total: r2(i.amount_total), residual: r2(i.amount_residual) }));
+}
+
+async function bankJournal(cfg) {
+  const c = client(cfg);
+  const j = await c.call('account.journal', 'search_read', [[['type', '=', 'bank']]], { fields: ['name'], order: 'id asc', limit: 1 });
+  if (!j.length) throw new Error('لا يوجد دفتر بنك في أودو');
+  return { id: j[0].id, name: j[0].name };
+}
+
+async function invoiceInfo(cfg, id) {
+  const c = client(cfg);
+  const r = await c.call('account.move', 'read', [[id]], { fields: ['name', 'state', 'move_type', 'payment_state', 'amount_residual', 'invoice_date', 'partner_id'] });
+  if (!r.length) throw new Error('الفاتورة غير موجودة في أودو');
+  return r[0];
+}
+
+// ---------- كتابة: تسجيل دفعة على فاتورة (بعد موافقة المالك فقط) ----------
+async function registerPayment(cfg, { invoiceId, amount, date, journalId }) {
+  if (!Number.isInteger(invoiceId) || !Number.isInteger(journalId)) throw new Error('معرّفات غير صالحة');
+  if (!(amount > 0) || amount > 10000000) throw new Error('مبلغ غير صالح');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('تاريخ غير صالح');
+  const c = client(cfg);
+  const ctx = { context: { active_model: 'account.move', active_ids: [invoiceId] } };
+  const wizard = await c.callWrite('account.payment.register', 'create', [{ payment_date: date, journal_id: journalId, amount }], ctx);
+  await c.callWrite('account.payment.register', 'action_create_payments', [[wizard]], ctx);
+  const after = await c.call('account.move', 'read', [[invoiceId]], { fields: ['name', 'payment_state', 'amount_residual'] });
+  return { name: after[0].name, paymentState: after[0].payment_state, residual: r2(after[0].amount_residual) };
+}
+
+module.exports = { test, summary, checkUrl, openInvoices, bankJournal, invoiceInfo, registerPayment };

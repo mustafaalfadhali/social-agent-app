@@ -34,6 +34,7 @@ const DEFAULTS = {
   meta: { appId: '', appSecret: '', configId: '', pages: [], selectedPageId: '' },
   tiktok: { clientKey: '', clientSecret: '', accessToken: '', refreshToken: '', expiresAt: 0, openId: '', displayName: '' },
   odoo: { url: '', db: '', login: '', apiKey: '' },
+  proposals: [], // مقترحات تنتظر موافقة المالك (دفعات...)
   media: [],   // {id, file, name, addedAt, usedAt}
   posts: [],   // {id, mediaId, caption, status, platforms, results, createdAt, publishedAt}
   log: [],     // {at, msg}

@@ -47,8 +47,10 @@
       </div>
       <div class="cmd-wrap">
         <div id="chatLog" class="chatlog"></div>
+        <div id="cmdChip" class="chip-attach"></div>
         <form id="cmdBar" class="cmdbar">
-          <input id="cmdInput" autocomplete="off" placeholder="اكتب طلبك للفريق… مثال: كم المستحقات المفتوحة؟ أي عقد ينتهي قريباً؟">
+          <button type="button" id="cmdAttach" class="ghost" title="إرفاق صورة حوالة (أو الصقها Ctrl+V)">📎</button>
+          <input id="cmdInput" autocomplete="off" placeholder="اكتب طلبك، أو أرفق/الصق صورة حوالة لتسجيل الدفعة…">
           <button id="cmdSend" type="submit">إرسال</button>
         </form>
         <p class="muted cmd-hint">اضغط على أي وكيل لتفتح تفاصيله. الطلبات التي تغيّر شيئاً تظهر كمقترح ولا تُنفَّذ قبل تفعيل الموافقات.</p>

@@ -11,6 +11,7 @@ const agent = require('./agent');
 const contracts = require('./contracts');
 const odoo = require('./odoo');
 const commander = require('./commander');
+const payments = require('./payments');
 const sec = require('./security');
 
 // مجلد اختبار اختياري للتطوير فقط (يُتجاهل في النسخة المثبَّتة)
@@ -71,6 +72,7 @@ function publicState() {
       connected: !!d.tiktok.refreshToken, displayName: d.tiktok.displayName, redirect: tiktok.REDIRECT,
     },
     odoo: { url: d.odoo.url, db: d.odoo.db, login: d.odoo.login, hasKey: !!d.odoo.apiKey },
+    proposals: (d.proposals || []).slice(0, 20),
     media: d.media.map((m) => ({ ...m, url: 'file:///' + path.join(mediaDir, m.file).replace(/\\/g, '/') })),
     posts: d.posts,
     log: d.log.slice(0, 100),
@@ -90,11 +92,31 @@ function registerIpc() {
   handle('state', () => publicState());
   handle('contracts:list', () => contracts.list());
   handle('contracts:rescan', () => contracts.rescan((m) => store.log(m)));
-  handle('assistant:ask', (p) => {
+  handle('assistant:ask', async (p) => {
     if (!p || typeof p !== 'object') throw new Error('مدخل غير صالح');
     const history = Array.isArray(p.history) ? p.history.slice(-8).map((m) => ({ role: m && m.role === 'user' ? 'user' : 'office', text: sec.str(String((m && m.text) || ''), 3000) })) : [];
+    const att = Array.isArray(p.attachments) ? p.attachments.slice(0, 1) : [];
+    if (att.length) {
+      const file = payments.resolveInbox(dataDir, att[0]);
+      const r = await payments.propose({ file, name: path.basename(file) }, store.get(), store);
+      return { agent: 'المحاسبة', reply: r.reply, proposal: r.proposal };
+    }
     return commander.ask({ text: sec.str(p.text, 2000), history }, store.get());
   });
+  handle('inbox:pick', async () => {
+    const r = await dialog.showOpenDialog(win, { properties: ['openFile'], filters: [{ name: 'حوالة (صورة أو PDF)', extensions: ['jpg', 'jpeg', 'png', 'webp', 'pdf'] }] });
+    if (r.canceled || !r.filePaths[0]) return null;
+    if (fs.statSync(r.filePaths[0]).size > 12 * 1024 * 1024) throw new Error('الملف أكبر من 12 ميجا');
+    return payments.saveInbox(dataDir, path.basename(r.filePaths[0]), fs.readFileSync(r.filePaths[0]));
+  });
+  handle('inbox:save', (f) => {
+    if (!f || typeof f !== 'object') throw new Error('مدخل غير صالح');
+    const b64 = sec.str(f.data, 17 * 1024 * 1024);
+    return payments.saveInbox(dataDir, sec.str(f.name || 'حوالة', 120), Buffer.from(b64, 'base64'));
+  });
+  handle('proposal:select', (id, invoiceId) => { if (!Number.isInteger(invoiceId)) throw new Error('فاتورة غير صالحة'); payments.select(store, sec.uuid(id), invoiceId); });
+  handle('proposal:approve', (id) => payments.approve(store, sec.uuid(id), dataDir));
+  handle('proposal:reject', (id) => payments.reject(store, sec.uuid(id)));
   handle('odoo:save', (f) => {
     const d = store.get();
     const url = odoo.checkUrl(sec.str(f.url || '', 300).trim());
@@ -107,7 +129,7 @@ function registerIpc() {
   handle('claude:status', () => claude.status(store.get().settings.claudePath));
   handle('claude:check', async () => { const t = Date.now(); const txt = await claude.askText('أجب بكلمة واحدة فقط: تم', store.get().settings); return { reply: txt.trim().slice(0, 80), seconds: Math.round((Date.now() - t) / 1000) }; });
   handle('claude:login', () => {
-    if (process.platform === 'win32') spawn('cmd.exe', ['/c', 'start', 'cmd', '/k', 'claude'], { detached: true, windowsHide: false });
+    if (process.platform === 'win32') spawn('cmd.exe', ['/c', 'start', 'cmd', '/k', 'claude', 'auth', 'login'], { detached: true, windowsHide: false });
     else sec.safeOpenExternal('https://docs.claude.com/en/docs/claude-code/setup');
   });
   handle('claude:install', () => sec.safeOpenExternal('https://docs.claude.com/en/docs/claude-code/setup'));
@@ -202,6 +224,7 @@ app.whenReady().then(() => {
   store.init(dataDir);
   agent.setMediaDir(mediaDir);
   registerIpc();
+  payments.cleanup(dataDir);
   contracts.init({ desktop: app.getPath('desktop'), userData: app.getPath('userData'), log: (m) => store.log(m) });
   createWindow(!process.argv.includes('--hidden'));
   createTray();

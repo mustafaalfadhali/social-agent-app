@@ -102,6 +102,7 @@ nav button.active svg { color: var(--accent); }
 nav button.active::before { content: ''; position: absolute; right: -14px; top: 22%; bottom: 22%; width: 4px; border-radius: 4px; background: var(--accent); box-shadow: 0 0 12px var(--accent); }
 .badge { display: flex; align-items: center; gap: 8px; padding: 9px 12px; background: rgba(255,255,255,.04); border: 1px solid var(--line); border-radius: 12px; font-size: 12px; }
 .badge::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+.badge.off::before { background: var(--bad); box-shadow: 0 0 8px var(--bad); }
 main { padding: 28px 38px 34px; scroll-behavior: smooth; }
 .tab.active { animation: tabIn .28s ease; }
 @keyframes tabIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
@@ -134,3 +135,13 @@ input:not([type=checkbox]):focus, textarea:focus, select:focus { outline: none; 
 nav button, nav button:hover:not(:disabled) { box-shadow: none; filter: none; }
 .card p, #claudeCheck, .msg, .prop { overflow-wrap: anywhere; word-break: break-word; }
 .card { min-width: 0; }
+
+.chip-attach { display: none; align-items: center; gap: 8px; margin-bottom: 6px; padding: 6px 12px; background: rgba(245,165,36,.12); border: 1px dashed var(--accent); border-radius: 10px; width: fit-content; }
+.chip-attach button { padding: 0 8px; border-radius: 8px; }
+#cmdAttach { border-radius: 99px; padding: 0 16px; font-size: 18px; }
+.pay { margin-top: 8px; padding: 10px 12px; background: rgba(15,21,35,.8); border: 1px solid var(--line); border-radius: 12px; }
+.pay.done { border-color: var(--ok); }
+.pay-h { font-weight: 700; margin-bottom: 4px; } .pay-w { color: var(--warn); font-size: 13px; margin-top: 4px; } .pay-ok { color: var(--ok); margin-top: 6px; font-weight: 600; }
+.pay-c { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 10px; margin-top: 6px; border: 1px solid var(--line); border-radius: 10px; }
+.pay-c.sel { border-color: var(--accent); background: rgba(245,165,36,.08); } .pay-c b { color: var(--accent); white-space: nowrap; }
+.pay .row { margin-top: 10px; }

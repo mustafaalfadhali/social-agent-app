@@ -184,9 +184,13 @@ const Office = (() => {
   }
 
   // ---------- البيانات ----------
+  const pendingPay = (state) => (state.proposals || []).filter((p) => p.type === 'payment' && p.status === 'pending').length;
+
   function accountingAgent(state, o) {
     const base = { name: 'المحاسبة', role: 'يعرض فواتير أودو ومستحقاتك (شعلة الخدمات). الإصدار وتسجيل الدفعات لاحقاً بموافقتك.' };
     if (!state.odoo || !state.odoo.hasKey) return { ...base, working: false, alert: '', text: 'اربط أودو من الحسابات' };
+    const pp = pendingPay(state);
+    if (pp) return { ...base, working: true, alert: pp, text: 'حوالة تنتظر موافقتك' };
     if (!o) return { ...base, working: false, alert: '', text: 'أتصل بأودو…' };
     if (o.error) return { ...base, working: false, alert: '!', text: 'تعذّر الاتصال بأودو' };
     return { ...base, working: true, alert: o.open.count || '', text: o.open.total > 0 ? `مستحقات ${money(o.open.total)}` : 'لا مستحقات مفتوحة' };
@@ -205,7 +209,7 @@ const Office = (() => {
   }
 
   function kpis(state, ct) {
-    const pend = state.posts.filter((p) => p.status === 'pending_review').length;
+    const pend = state.posts.filter((p) => p.status === 'pending_review').length + pendingPay(state);
     const soon = ct ? ct.summary.soon30 + ct.summary.soon90 : 0;
     const working = agents.filter((a) => a.working).length;
     document.getElementById('officeKpis').innerHTML =
