@@ -5,7 +5,7 @@ const Office = (() => {
   const cx = cv.getContext('2d');
   const layer = document.getElementById('officeLayer');
   const drawer = document.getElementById('officeDrawer');
-  let agents = [], frame = 0, selected = null, hover = null, last = { state: null, ct: null, odoo: null };
+  let agents = [], frame = 0, selected = null, hover = null, last = { state: null, ct: null, odoo: null, visits: null };
   const money = (n) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(n) + ' ر.س';
 
   const COL = { 'النشر': '#f5a524', 'العقود': '#60a5fa', 'المحاسبة': '#34d399', 'الزيارات': '#c084fc', 'خدمة العملاء': '#fb7185' };
@@ -169,6 +169,15 @@ const Office = (() => {
         (o.customers.length ? '<h4>أرصدة العملاء المفتوحة</h4><ul>' + o.customers.map((c) => `<li>${esc2(c.name)}<br><span class="muted">${money(c.residual)}</span></li>`).join('') + '</ul>' : '') +
         '<h4>آخر الفواتير</h4><ul>' + o.recent.map((i) => `<li>${i.paid ? '✅' : '⏳'} ${esc2(i.name)} · ${money(i.total)}<br><span class="muted">${esc2(i.partner)} · ${esc2(i.date || '')}</span></li>`).join('') + '</ul>';
       body += '<p class="muted">قراءة فقط. الإصدار وتسجيل الدفعات يأتيان لاحقاً بموافقتك.</p>';
+    } else if (a.name === 'الزيارات') {
+      const v = last.visits;
+      if (!st.visits.hasToken) body += '<p class="muted">لم يُربط ببرنامج الزيارات بعد.</p><div class="row"><button id="odGo">ربط الزيارات</button></div>';
+      else if (!v) body += '<p class="muted">جارِ الاتصال…</p>';
+      else if (v.error) body += `<p class="muted">⚠ ${esc2(v.error)}</p><div class="row"><button class="ghost" id="odGo">فتح إعدادات الزيارات</button></div>`;
+      else body += `<div class="mini"><div><b>${v.totals.fullyVisited} / ${v.totals.branches}</b><span>فرع اكتملت زياراته هذا الشهر</span></div></div><h4>التقدم لكل براند</h4><ul>` +
+        v.brands.map((b) => `<li><b>${esc2(b.label)}</b>: تمت ${b.done} من ${b.required} زيارة<br><span class="muted">${b.remainingSites ? 'باقٍ ' + b.remainingSites + ' فرع' : '✅ اكتمل'}${b.missing ? '' : ''}</span></li>`).join('') + '</ul>' +
+        (v.today_list.length ? '<h4>زيارات اليوم</h4><ul>' + v.today_list.map((x) => `<li>${esc2(x.branch)}<br><span class="muted">${esc2(x.brand)} · ${esc2(x.type)}</span></li>`).join('') + '</ul>' : '');
+      body += '<p class="muted">قراءة فقط. أرقام الشهر الحالي وتُصفَّر آخر الشهر.</p>';
     } else {
       body += `<p class="muted">لم يُربط بالبرنامج بعد، وسيبدأ عمله عند الربط.</p>`;
     }
@@ -196,6 +205,14 @@ const Office = (() => {
     return { ...base, working: true, alert: o.open.count || '', text: o.open.total > 0 ? `مستحقات ${money(o.open.total)}` : 'لا مستحقات مفتوحة' };
   }
 
+  function visitsAgent(state, v) {
+    const base = { name: 'الزيارات', role: 'يتابع تقدم زيارات الفروع هذا الشهر لكل براند (قراءة فقط من برنامج الزيارات).' };
+    if (!state.visits || !state.visits.hasToken) return { ...base, working: false, alert: '', text: 'اربط الزيارات من الحسابات' };
+    if (!v) return { ...base, working: false, alert: '', text: 'أتصل ببرنامج الزيارات…' };
+    if (v.error) return { ...base, working: false, alert: '!', text: 'تعذّر الاتصال بالزيارات' };
+    return { ...base, working: true, alert: '', text: `${v.totals.remaining} فرع لم تكتمل زياراته` };
+  }
+
   function build(state, ct) {
     const pending = state.posts.filter((p) => p.status === 'pending_review').length;
     const soon = ct ? ct.summary.soon30 + ct.summary.soon90 : 0;
@@ -203,7 +220,7 @@ const Office = (() => {
       { name: 'النشر', role: 'يكتب المنشورات وينشرها على فيسبوك وإنستغرام وتيك توك، وما يحتاج موافقتك يقف عندك.', working: !!state.agentBusy, alert: pending || '', text: state.agentBusy ? 'أكتب منشوراً الآن…' : pending ? 'منشورات تنتظر موافقتك' : 'جاهز للنشر' },
       { name: 'العقود', role: 'يتابع عقود العملاء ويحسب ما ينتهي قريباً وما تجدد تلقائياً.', working: soon > 0, alert: soon || '', text: soon ? 'عقود تنتهي قريباً' : 'كل العقود سليمة' },
       accountingAgent(state, last.odoo),
-      { name: 'الزيارات', role: 'سيتابع الزيارات المستحقة من برنامج زيارات الفروع.', working: false, alert: '', text: 'قريباً' },
+      visitsAgent(state, last.visits),
       { name: 'خدمة العملاء', role: 'سيعرض حالة محادثات واتساب (للعرض فقط).', working: false, alert: '', text: 'قريباً' },
     ].map((a) => ({ ...a, color: COL[a.name], text: said[a.name] ? said[a.name] : a.text }));
   }
@@ -216,8 +233,8 @@ const Office = (() => {
       `<div class="kpi"><b>${working}</b><span>وكلاء يعملون</span></div><div class="kpi ${pend ? 'warn' : ''}"><b>${pend}</b><span>بانتظار موافقتك</span></div><div class="kpi ${soon ? 'warn' : ''}"><b>${soon}</b><span>عقود تنتهي قريباً</span></div>`;
   }
 
-  function update(state, ct, odoo) {
-    last = { state, ct, odoo: odoo === undefined ? last.odoo : odoo };
+  function update(state, ct, odoo, visits) {
+    last = { state, ct, odoo: odoo === undefined ? last.odoo : odoo, visits: visits === undefined ? last.visits : visits };
     const prev = layer.children.length;
     agents = build(state, ct);
     layer.innerHTML = layerHtml(); bind();

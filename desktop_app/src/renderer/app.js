@@ -33,7 +33,7 @@ document.querySelectorAll('nav button').forEach((b) => b.addEventListener('click
 async function refresh() {
   state = await call('state');
   renderHome(); renderLibrary(); renderAccounts(); renderTg();
-  if (typeof Office !== 'undefined') Office.update(state, ctData, typeof odooData !== 'undefined' ? odooData : null);
+  if (typeof Office !== 'undefined') Office.update(state, ctData, typeof odooData !== 'undefined' ? odooData : null, typeof visitsData !== 'undefined' ? visitsData : null);
   if (!document.activeElement?.dataset?.cap) renderPosts();
 }
 
@@ -234,6 +234,23 @@ setInterval(loadContracts, 60000);
 $('ctSearch').oninput = renderContracts; $('ctFilter').onchange = renderContracts;
 
 
+
+// ---- زيارات الفروع (قراءة فقط) ----
+let visitsData = null, visitsFetching = false;
+function fillVisits() { const v = state.visits; $('vsUrl').value = v.url; $('vsStatus').textContent = v.hasToken ? 'الرمز محفوظ' : ''; }
+async function loadVisits() {
+  if (!state?.visits?.hasToken || visitsFetching) { if (!state?.visits?.hasToken) { visitsData = null; Office.update(state, ctData, undefined, null); } return; }
+  visitsFetching = true;
+  try { const r = await window.api.call('visits:summary'); visitsData = r.ok ? r.data : { error: r.error }; } finally { visitsFetching = false; }
+  Office.update(state, ctData, undefined, visitsData);
+}
+$('btnVsSave').onclick = async () => { await call('visits:save', { url: $('vsUrl').value, token: $('vsToken').value }); $('vsToken').value = ''; toast('تم الحفظ'); await refresh(); loadVisits(); };
+$('btnVsTest').onclick = (e) => withBusy(e.target, async () => {
+  await call('visits:save', { url: $('vsUrl').value, token: $('vsToken').value }); $('vsToken').value = '';
+  const r = await call('visits:test'); toast(`اتصال ناجح ✅ (${r.branches} فرعاً)`); await refresh(); loadVisits();
+});
+$('btnVsOff').onclick = async () => { await call('visits:disconnect'); visitsData = null; await refresh(); fillVisits(); Office.update(state, ctData, undefined, null); toast('تم فصل الزيارات'); };
+
 // ---- تيليجرام ----
 let tgTimer = null;
 function renderTg() {
@@ -362,7 +379,7 @@ $('cmdBar').onsubmit = async (e) => {
 
 (async () => {
   await refresh();
-  fillOdoo(); renderTg(); loadOdoo(); setInterval(loadOdoo, 120000);
+  fillOdoo(); fillVisits(); renderTg(); loadOdoo(); loadVisits(); setInterval(loadOdoo, 120000); setInterval(loadVisits, 120000);
   loadContracts();
   fillSettings();
   checkClaude();

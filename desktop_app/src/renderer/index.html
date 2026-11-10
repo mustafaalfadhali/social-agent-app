@@ -82,6 +82,13 @@
     <section id="accounts" class="tab">
       <h1>الحسابات</h1>
       <div class="card">
+        <h3>زيارات الفروع — قراءة فقط</h3>
+        <p class="muted">يقرأ تقدم الزيارات الشهري لكل براند من برنامج الزيارات. الرمز يُنشأ على السيرفر عند تفعيل الواجهة (لا يعطي أي صلاحية تعديل).</p>
+        <label>رابط برنامج الزيارات<input id="vsUrl" placeholder="https://branches.mustafa-server.vip"></label>
+        <label>رمز القراءة<input id="vsToken" type="password" placeholder="يُترك فارغاً للإبقاء على المحفوظ"></label>
+        <div class="row"><button id="btnVsSave">حفظ</button><button class="ghost" id="btnVsTest">اختبار الاتصال</button><button class="ghost" id="btnVsOff">فصل</button><span id="vsStatus" class="muted"></span></div>
+      </div>
+      <div class="card">
         <h3>تيليجرام — تكلّم مكتب سراج من الجوال</h3>
         <p class="muted">أنشئ بوتاً جديداً خاصاً بسراج من BotFather (<code>/newbot</code>) والصق مفتاحه هنا. لا تستخدم بوتاً مستعملاً في برنامج آخر. الجهاز لازم يبقى مشغّلاً وسراج مفتوحاً.</p>
         <label>مفتاح البوت<input id="tgToken" type="password" placeholder="123456789:AA…"></label>

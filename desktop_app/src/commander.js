@@ -3,9 +3,11 @@
 const claude = require('./claude');
 const contracts = require('./contracts');
 const odoo = require('./odoo');
+const visits = require('./visits');
 
 const AGENTS = ['النشر', 'العقود', 'المحاسبة', 'الزيارات', 'خدمة العملاء', 'عام'];
 let odooCache = { at: 0, data: null };
+let visitsCache = { at: 0, data: null };
 
 async function odooData(cfg) {
   if (!cfg.apiKey) return { connected: false };
@@ -13,6 +15,19 @@ async function odooData(cfg) {
   try { odooCache = { at: Date.now(), data: { connected: true, ...(await odoo.summary(cfg)) } }; }
   catch (e) { odooCache = { at: Date.now(), data: { connected: true, error: e.message } }; }
   return odooCache.data;
+}
+
+async function visitsData(cfg) {
+  if (!cfg.token) return { connected: false };
+  if (Date.now() - visitsCache.at < 120000 && visitsCache.data) return visitsCache.data;
+  try {
+    const s = await visits.summary(cfg);
+    visitsCache = { at: Date.now(), data: { connected: true, today: s.today, totals: s.totals, overdue_scheduled: s.overdue, latest_schedule_date: s.scheduleNewest,
+      today_visits: s.today_list, tomorrow_visits: s.tomorrow_list,
+      brands: s.brands.map((b) => ({ brand: b.label, sites: b.sites, visits_required: b.required, visits_done: b.done, visits_missing: b.missing, sites_remaining: b.remainingSites, report_numbers: b.reports,
+        unvisited_sites: b.unvisited.slice(0, 40).map((u) => `${u.name} (${u.done}/${u.required})`) })) } };
+  } catch (e) { visitsCache = { at: Date.now(), data: { connected: true, error: e.message } }; }
+  return visitsCache.data;
 }
 
 async function buildContext(d) {
@@ -24,6 +39,7 @@ async function buildContext(d) {
       items: ct.items.map((i) => ({ client: i.client, entity: i.entity, no: i.no, start: i.start, end: i.end, days: i.days, status: i.status })),
     },
     accounting: await odooData(d.odoo),
+    visits: await visitsData(d.visits),
     posts: { pending_review: d.posts.filter((p) => p.status === 'pending_review').length, recent_log: d.log.slice(0, 5).map((l) => l.msg) },
   };
 }
@@ -39,7 +55,8 @@ async function ask({ text, history = [] }, d) {
     '- فواتير الشركة تصدر من «شعلة الخدمات» فقط. والعقود قد تكون باسم الخدمات أو الجزيرة.',
     '- التاريخ الماضي في العقود يعني «تم التجديد» وليس «منتهياً».',
     '- أنت لا تنفّذ أي تغيير. إذا طلب المالك ما يغيّر شيئاً (إصدار فاتورة، تسجيل دفعة، نشر منشور، تعديل عقد) فأعد proposal يلخّص ما سيُنفَّذ، وقل في الرد إنه مقترح ينتظر تفعيل الموافقات.',
-    '- الوكيل «الزيارات» و«خدمة العملاء» غير مربوطين بعد: قل ذلك إن سُئلت عنهما.',
+    '- بيانات الزيارات في visits (إن كان connected=true): الأرقام شهرية وتُصفَّر آخر الشهر. «تمت X من Y زيارة» = visits_done من visits_required. جدول الزيارات المجدولة قد يكون قديماً (انظر latest_schedule_date)، فلا تتحدث عن زيارات اليوم إن كانت القائمة فارغة إلا بقولك إنه لا يوجد جدول لها. إن كان connected=false فقل إن وكيل الزيارات غير مربوط.',
+    '- وكيل «خدمة العملاء» غير مربوط بعد: قل ذلك إن سُئلت عنه.',
     '- إذا طلب المالك نسخة PDF لفاتورة أو كشف حساب عميل فأعد action: {"type":"invoice_pdf","invoice":"INV/2026/00061"} لرقم محدد، أو {"type":"invoice_pdf","customer":"اسم العميل"} لآخر فاتورة له، أو {"type":"statement_pdf","customer":"اسم العميل"} للكشف، وقل في الرد «جارِ تجهيز الملف». لا تقل إنك عاجز عن ذلك.',
     '',
     'البيانات (JSON):',

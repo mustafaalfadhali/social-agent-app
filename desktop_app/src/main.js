@@ -14,6 +14,7 @@ const commander = require('./commander');
 const payments = require('./payments');
 const telegramBot = require('./telegram');
 const documents = require('./documents');
+const visits = require('./visits');
 let tg;
 const sec = require('./security');
 
@@ -77,6 +78,7 @@ function publicState() {
     },
     odoo: { url: d.odoo.url, db: d.odoo.db, login: d.odoo.login, hasKey: !!d.odoo.apiKey },
     proposals: (d.proposals || []).slice(0, 20),
+    visits: { url: d.visits.url, hasToken: !!d.visits.token },
     telegram: { hasToken: !!d.telegram.token, paired: !!d.telegram.chatId, username: d.telegram.username || '' },
     media: d.media.map((m) => ({ ...m, url: 'file:///' + path.join(mediaDir, m.file).replace(/\\/g, '/') })),
     posts: d.posts,
@@ -126,6 +128,17 @@ function registerIpc() {
     const err = await shell.openPath(file);
     if (err) throw new Error(err);
   });
+  handle('visits:save', (f) => {
+    if (!f || typeof f !== 'object') throw new Error('مدخل غير صالح');
+    const d = store.get();
+    const url = visits.checkUrl(sec.str(f.url || '', 300).trim());
+    const t = f.token ? sec.str(f.token, 200).trim() : d.visits.token;
+    if (t && !/^[0-9a-f]{32,128}$/i.test(t)) throw new Error('شكل رمز الزيارات غير صحيح (أحرف وأرقام 0-9 a-f فقط)');
+    d.visits = { url, token: t }; store.save();
+  });
+  handle('visits:test', () => visits.test(store.get().visits));
+  handle('visits:summary', () => visits.summary(store.get().visits));
+  handle('visits:disconnect', () => { store.get().visits = { url: 'https://branches.mustafa-server.vip', token: '' }; store.save(); });
   handle('telegram:save', (t) => tg.connect(t));
   handle('telegram:pair', () => tg.startPairing());
   handle('telegram:status', () => tg.status());
