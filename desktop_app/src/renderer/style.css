@@ -88,10 +88,11 @@ dialog::backdrop { background: rgba(0,0,0,.6); }
   --accent: #f5a524; --accent2: #ff7a1a; }
 body { background: radial-gradient(1200px 620px at 85% -10%, #16213a 0%, var(--bg) 62%); letter-spacing: .1px; }
 aside { width: 236px; background: linear-gradient(180deg, #121a2c 0%, #0c111d 100%); border-left: 1px solid var(--line); padding: 22px 14px 16px; box-shadow: -8px 0 30px rgba(0,0,0,.25); z-index: 2; }
-.brand { display: flex; align-items: center; gap: 10px; font-size: 27px; font-weight: 800; margin-bottom: 26px; padding: 0 6px;
+.brand { display: flex; align-items: center; gap: 12px; font-size: 27px; font-weight: 800; margin-bottom: 26px; padding: 0 6px;
   background: linear-gradient(90deg, #ffd27a, var(--accent)); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.brand .logo { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; font-size: 22px; color: #1b1205;
-  background: linear-gradient(135deg, #ffd27a, var(--accent2)); box-shadow: 0 6px 18px rgba(245,165,36,.35); -webkit-text-fill-color: #1b1205; }
+.brand .logo { width: 92px; height: 52px; border-radius: 14px; display: grid; place-items: center; padding: 5px 9px; background: #fff;
+  box-shadow: 0 6px 18px rgba(0,0,0,.35), 0 0 0 2px rgba(245,165,36,.45); -webkit-text-fill-color: initial; }
+.brand .logo img { width: 100%; height: 100%; object-fit: contain; display: block; }
 nav { gap: 5px; }
 nav button { display: flex; align-items: center; gap: 12px; padding: 11px 14px; border-radius: 12px; position: relative; transition: background .18s, color .18s, transform .18s; font-weight: 600; }
 nav button svg { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; opacity: .9; }
