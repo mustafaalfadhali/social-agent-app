@@ -12,6 +12,8 @@ const contracts = require('./contracts');
 const odoo = require('./odoo');
 const commander = require('./commander');
 const payments = require('./payments');
+const telegramBot = require('./telegram');
+let tg;
 const sec = require('./security');
 
 // مجلد اختبار اختياري للتطوير فقط (يُتجاهل في النسخة المثبَّتة)
@@ -73,6 +75,7 @@ function publicState() {
     },
     odoo: { url: d.odoo.url, db: d.odoo.db, login: d.odoo.login, hasKey: !!d.odoo.apiKey },
     proposals: (d.proposals || []).slice(0, 20),
+    telegram: { hasToken: !!d.telegram.token, paired: !!d.telegram.chatId, username: d.telegram.username || '' },
     media: d.media.map((m) => ({ ...m, url: 'file:///' + path.join(mediaDir, m.file).replace(/\\/g, '/') })),
     posts: d.posts,
     log: d.log.slice(0, 100),
@@ -103,6 +106,10 @@ function registerIpc() {
     }
     return commander.ask({ text: sec.str(p.text, 2000), history }, store.get());
   });
+  handle('telegram:save', (t) => tg.connect(t));
+  handle('telegram:pair', () => tg.startPairing());
+  handle('telegram:status', () => tg.status());
+  handle('telegram:disconnect', () => tg.disconnect());
   handle('inbox:pick', async () => {
     const r = await dialog.showOpenDialog(win, { properties: ['openFile'], filters: [{ name: 'حوالة (صورة أو PDF)', extensions: ['jpg', 'jpeg', 'png', 'webp', 'pdf'] }] });
     if (r.canceled || !r.filePaths[0]) return null;
@@ -225,6 +232,8 @@ app.whenReady().then(() => {
   agent.setMediaDir(mediaDir);
   registerIpc();
   payments.cleanup(dataDir);
+  tg = telegramBot.create({ store, dataDir, commander, payments, log: (m) => store.log(m) });
+  tg.start();
   contracts.init({ desktop: app.getPath('desktop'), userData: app.getPath('userData'), log: (m) => store.log(m) });
   createWindow(!process.argv.includes('--hidden'));
   createTray();

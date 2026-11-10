@@ -32,7 +32,7 @@ document.querySelectorAll('nav button').forEach((b) => b.addEventListener('click
 
 async function refresh() {
   state = await call('state');
-  renderHome(); renderLibrary(); renderAccounts();
+  renderHome(); renderLibrary(); renderAccounts(); renderTg();
   if (typeof Office !== 'undefined') Office.update(state, ctData, typeof odooData !== 'undefined' ? odooData : null);
   if (!document.activeElement?.dataset?.cap) renderPosts();
 }
@@ -233,6 +233,27 @@ $('btnCtScan').onclick = (e) => withBusy(e.target, async () => { const r = await
 setInterval(loadContracts, 60000);
 $('ctSearch').oninput = renderContracts; $('ctFilter').onchange = renderContracts;
 
+
+// ---- تيليجرام ----
+let tgTimer = null;
+function renderTg() {
+  const t = state.telegram, el = $('tgStatus');
+  if (!t.hasToken) { el.textContent = 'غير متصل.'; return; }
+  el.textContent = t.paired ? `✅ متصل بحسابك${t.username ? ' (@' + t.username + ')' : ''}. أرسل له رسالة من جوالك.` : `البوت @${t.username || '…'} جاهز. اضغط «ربط حسابي» ثم أرسل الرمز له.`;
+}
+$('btnTgSave').onclick = (e) => withBusy(e.target, async () => {
+  const r = await call('telegram:save', $('tgToken').value.trim()); $('tgToken').value = '';
+  toast('تم الاتصال بالبوت @' + r.username); await refresh(); renderTg();
+});
+$('btnTgPair').onclick = (e) => withBusy(e.target, async () => {
+  const r = await call('telegram:pair');
+  $('tgStatus').textContent = `أرسل هذا الرمز إلى @${r.username} من جوالك خلال 10 دقائق:  ${r.code}`;
+  clearInterval(tgTimer);
+  tgTimer = setInterval(async () => { await refresh(); if (state.telegram.paired) { clearInterval(tgTimer); renderTg(); toast('تم ربط تيليجرام ✅'); } }, 3000);
+  setTimeout(() => clearInterval(tgTimer), 10 * 60 * 1000);
+});
+$('btnTgOff').onclick = async () => { await call('telegram:disconnect'); await refresh(); renderTg(); toast('تم فصل تيليجرام'); };
+
 // ---- أودو (قراءة فقط) ----
 let odooData = null, odooFetching = false;
 function fillOdoo() { const o = state.odoo; $('odUrl').value = o.url; $('odDb').value = o.db; $('odLogin').value = o.login; $('odStatus').textContent = o.hasKey ? 'المفتاح محفوظ' : ''; }
@@ -339,7 +360,7 @@ $('cmdBar').onsubmit = async (e) => {
 
 (async () => {
   await refresh();
-  fillOdoo(); loadOdoo(); setInterval(loadOdoo, 120000);
+  fillOdoo(); renderTg(); loadOdoo(); setInterval(loadOdoo, 120000);
   loadContracts();
   fillSettings();
   checkClaude();
