@@ -11,6 +11,7 @@
     <div class="brand">سِراج</div>
     <nav>
       <button data-tab="home" class="active">الرئيسية</button>
+      <button data-tab="office">المكتب</button>
       <button data-tab="library">مكتبة الصور</button>
       <button data-tab="posts">المنشورات</button>
       <button data-tab="contracts">العقود</button>
@@ -36,6 +37,13 @@
     </section>
 
     <!-- المكتبة -->
+    <!-- المكتب -->
+    <section id="office" class="tab">
+      <h1>المكتب</h1>
+      <div class="office-wrap"><canvas id="officeCanvas" width="960" height="540"></canvas><div id="officeBox" class="card"></div></div>
+      <p class="muted">كل وكيل على مكتبه: المصباح مضيء عندما يعمل، والفقاعة تعرض ما يفعله الآن.</p>
+    </section>
+
     <section id="library" class="tab">
       <div class="head"><h1>مكتبة الصور</h1><button id="btnAddMedia">+ رفع صور من الجهاز</button></div>
       <p class="muted">الوكيل يأخذ كل يوم صورة جديدة (لم تُستخدم) ويكتب لها منشوراً وينشره.</p>
@@ -135,6 +143,6 @@
   </dialog>
 
   <div id="toast"></div>
-  <script src="app.js"></script>
+  <script src="office.js"></script><script src="app.js"></script>
 </body>
 </html>

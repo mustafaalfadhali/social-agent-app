@@ -139,4 +139,4 @@ function startScheduler() {
   setTimeout(() => refreshStats().catch(() => {}), 60 * 1000);
 }
 
-module.exports = { setMediaDir, createPost, publishPost, dailyRun, startScheduler };
+module.exports = { isBusy: () => busy, setMediaDir, createPost, publishPost, dailyRun, startScheduler };

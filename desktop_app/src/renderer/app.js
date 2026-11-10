@@ -33,6 +33,7 @@ document.querySelectorAll('nav button').forEach((b) => b.addEventListener('click
 async function refresh() {
   state = await call('state');
   renderHome(); renderLibrary(); renderAccounts();
+  if (typeof Office !== 'undefined') Office.update(state, ctData);
   if (!document.activeElement?.dataset?.cap) renderPosts();
 }
 
@@ -191,7 +192,7 @@ $('btnSaveSettings').onclick = async () => {
 
 const CT = { renewed: 'تم التجديد', soon30: 'ينتهي خلال 30 يوماً', soon90: 'ينتهي خلال 90 يوماً', active: 'ساري' };
 let ctData = null;
-async function loadContracts() { ctData = await call('contracts:list'); renderContracts(); }
+async function loadContracts() { ctData = await call('contracts:list'); renderContracts(); if (state) Office.update(state, ctData); }
 function renderContracts() {
   if (!ctData) return;
   const s = ctData.summary;

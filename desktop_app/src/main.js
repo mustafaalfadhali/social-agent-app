@@ -64,6 +64,7 @@ function publicState() {
     media: d.media.map((m) => ({ ...m, url: 'file:///' + path.join(mediaDir, m.file).replace(/\\/g, '/') })),
     posts: d.posts,
     log: d.log.slice(0, 100),
+    agentBusy: agent.isBusy(),
   };
 }
 

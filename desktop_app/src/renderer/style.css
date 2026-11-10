@@ -55,3 +55,7 @@ dialog::backdrop { background: rgba(0,0,0,.6); }
 .big.ct-renewed { color: #60a5fa; } .big.ct-soon30 { color: var(--warn); } .big.ct-soon90 { color: var(--warn); } .big.ct-active { color: var(--ok); }
 .ct-row { margin-bottom: 8px; padding: 10px 14px; } .ct-row.ct-renewed { border-color: #3b82f6; }
 .ct-row.ct-soon30, .ct-row.ct-soon90 { border-color: var(--warn); }
+
+.office-wrap { display: grid; grid-template-columns: 1fr 280px; gap: 16px; align-items: start; }
+#officeCanvas { width: 100%; image-rendering: pixelated; border-radius: 12px; border: 1px solid var(--line); background: #1c2333; }
+#officeBox p { margin: 6px 0; }
