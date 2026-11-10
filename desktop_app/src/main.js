@@ -8,6 +8,7 @@ const claude = require('./claude');
 const meta = require('./meta');
 const tiktok = require('./tiktok');
 const agent = require('./agent');
+const contracts = require('./contracts');
 
 app.setPath('userData', path.join(app.getPath('appData'), 'SirajDesktop'));
 const dataDir = app.getPath('userData');
@@ -75,6 +76,7 @@ function handle(name, fn) {
 
 function registerIpc() {
   handle('state', () => publicState());
+  handle('contracts:list', () => contracts.list());
   handle('claude:status', () => claude.status(store.get().settings.claudePath));
   handle('claude:login', () => {
     if (process.platform === 'win32') spawn('cmd.exe', ['/c', 'start', 'cmd', '/k', 'claude'], { detached: true, windowsHide: false });

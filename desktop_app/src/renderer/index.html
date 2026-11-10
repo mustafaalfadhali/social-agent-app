@@ -13,6 +13,7 @@
       <button data-tab="home" class="active">الرئيسية</button>
       <button data-tab="library">مكتبة الصور</button>
       <button data-tab="posts">المنشورات</button>
+      <button data-tab="contracts">العقود</button>
       <button data-tab="accounts">الحسابات</button>
       <button data-tab="settings">الإعدادات</button>
     </nav>
@@ -45,6 +46,14 @@
     <section id="posts" class="tab">
       <h1>المنشورات</h1>
       <div id="postList"></div>
+    </section>
+
+    <!-- العقود -->
+    <section id="contracts" class="tab">
+      <div class="head"><h1>العقود</h1><span id="ctDate" class="muted"></span></div>
+      <div id="ctSummary" class="cards"></div>
+      <div class="row"><input id="ctSearch" placeholder="بحث باسم العميل…"><select id="ctFilter"><option value="">الكل</option><option value="expired">منتهية</option><option value="soon30">تنتهي خلال 30 يوماً</option><option value="soon90">تنتهي خلال 90 يوماً</option><option value="active">سارية</option></select></div>
+      <div id="ctList"></div>
     </section>
 
     <!-- الحسابات -->

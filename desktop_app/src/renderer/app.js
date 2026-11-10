@@ -189,8 +189,31 @@ $('btnSaveSettings').onclick = async () => {
   toast('تم حفظ الإعدادات ✅'); await refresh(); checkClaude();
 };
 
+const CT = { expired: 'منتهٍ', soon30: 'ينتهي خلال 30 يوماً', soon90: 'ينتهي خلال 90 يوماً', active: 'ساري' };
+let ctData = null;
+async function loadContracts() { ctData = await call('contracts:list'); renderContracts(); }
+function renderContracts() {
+  if (!ctData) return;
+  const s = ctData.summary;
+  $('ctDate').textContent = `بتاريخ ${ctData.today}`;
+  $('ctSummary').innerHTML = ['expired', 'soon30', 'soon90', 'active'].map((k) =>
+    `<div class="card"><div class="muted">${CT[k]}</div><div class="big ct-${k}">${s[k]}</div></div>`).join('');
+  const q = $('ctSearch').value.trim(), f = $('ctFilter').value;
+  const items = ctData.items.filter((i) => (!f || i.status === f) && (!q || i.client.includes(q)));
+  $('ctList').innerHTML = items.map((i) => `
+    <div class="post ct-row ct-${i.status}">
+      <div class="body"><b>${esc(i.client)}</b> <span class="status">${CT[i.status]}</span>
+        <div class="muted">${esc(i.entity)} · ${esc(i.no || 'بدون رقم')} · ${esc(i.start)} ← ${esc(i.end)} · ${i.days < 0 ? 'منذ ' + (-i.days) + ' يوم' : 'باقي ' + i.days + ' يوم'}</div>
+        ${i.visits ? `<div class="muted">${esc(i.visits)}</div>` : ''}
+        ${i.flags.length ? `<div class="muted">⚠ ${esc(i.flags.join('، '))}</div>` : ''}
+      </div>
+    </div>`).join('') || '<p class="muted">لا نتائج</p>';
+}
+$('ctSearch').oninput = renderContracts; $('ctFilter').onchange = renderContracts;
+
 (async () => {
   await refresh();
+  loadContracts();
   fillSettings();
   checkClaude();
   setInterval(refresh, 30000);
