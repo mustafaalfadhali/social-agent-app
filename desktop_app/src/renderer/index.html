@@ -82,6 +82,15 @@
     <section id="accounts" class="tab">
       <h1>الحسابات</h1>
       <div class="card">
+        <h3>واتساب — خدمة العملاء</h3>
+        <p class="muted">تصل رسائل العملاء عبر جسر Cloudflare، ويكتب Claude مسودة الرد، ولا يُرسل شيء إلا بموافقتك. الرموز تُدخلها أنت هنا وتُحفظ مشفّرة.</p>
+        <label>رابط الجسر<input id="waUrl" placeholder="https://siraj-relay.mustafalive2022.workers.dev"></label>
+        <label>رمز الجسر (PULL_TOKEN)<input id="waBridge" type="password" placeholder="يُترك فارغاً للإبقاء على المحفوظ"></label>
+        <label>Phone Number ID<input id="waPhone" placeholder="1383626348173922"></label>
+        <label>رمز واتساب (Access Token)<input id="waToken" type="password" placeholder="يُترك فارغاً للإبقاء على المحفوظ"></label>
+        <div class="row"><button id="btnWaSave">حفظ</button><button class="ghost" id="btnWaTest">اختبار الجسر</button><button class="ghost" id="btnWaOff">فصل</button><span id="waStatus" class="muted"></span></div>
+      </div>
+      <div class="card">
         <h3>زيارات الفروع — قراءة فقط</h3>
         <p class="muted">يقرأ تقدم الزيارات الشهري لكل براند من برنامج الزيارات. الرمز يُنشأ على السيرفر عند تفعيل الواجهة (لا يعطي أي صلاحية تعديل).</p>
         <label>رابط برنامج الزيارات<input id="vsUrl" placeholder="https://branches.mustafa-server.vip"></label>

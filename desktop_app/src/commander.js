@@ -38,6 +38,14 @@ function marketingStatus(d) {
   return { page_linked: !!p, page: p ? p.name : null, instagram_linked: !!(p && p.igId), instagram: p && p.igUsername ? '@' + p.igUsername : null, ads_token_saved: !!m.userToken };
 }
 
+// ملخص خدمة العملاء (واتساب) من الذاكرة المحلية: بلا أرقام هواتف
+function waSummary(d) {
+  const w = d.wa || {};
+  if (!w.pullToken || !w.phoneId) return { connected: false };
+  const cs = Object.values(w.convs || {}).filter((c) => c.status === 'draft' || c.status === 'new').sort((a, b) => b.updatedAt - a.updatedAt);
+  return { connected: true, waiting_for_reply: cs.length, conversations: cs.slice(0, 8).map((c) => ({ customer: c.name || 'عميل', last_message: String((c.messages[c.messages.length - 1] || {}).text || '').slice(0, 200), category: c.draft && c.draft.category, urgent: !!(c.draft && c.draft.urgent), summary: c.draft && c.draft.summary })) };
+}
+
 async function buildContext(d, text = '', history = []) {
   const ct = contracts.list();
   let marketing;
@@ -47,6 +55,7 @@ async function buildContext(d, text = '', history = []) {
   }
   return {
     marketing_link_status: marketingStatus(d),
+    customer_service: waSummary(d),
     ...(marketing ? { marketing } : {}),
     today: ct.today,
     contracts: {
@@ -71,7 +80,7 @@ async function ask({ text, history = [] }, d) {
     '- التاريخ الماضي في العقود يعني «تم التجديد» وليس «منتهياً».',
     '- أنت لا تنفّذ أي تغيير. إذا طلب المالك ما يغيّر شيئاً (إصدار فاتورة، تسجيل دفعة، نشر منشور، تعديل عقد) فأعد proposal يلخّص ما سيُنفَّذ، وقل في الرد إنه مقترح ينتظر تفعيل الموافقات.',
     '- بيانات الزيارات في visits (إن كان connected=true): الأرقام شهرية وتُصفَّر آخر الشهر. «تمت X من Y زيارة» = visits_done من visits_required. جدول الزيارات المجدولة قد يكون قديماً (انظر latest_schedule_date)، فلا تتحدث عن زيارات اليوم إن كانت القائمة فارغة إلا بقولك إنه لا يوجد جدول لها. إن كان connected=false فقل إن وكيل الزيارات غير مربوط.',
-    '- وكيل «خدمة العملاء» غير مربوط بعد: قل ذلك إن سُئلت عنه.',
+    '- وكيل «خدمة العملاء» يقرأ رسائل واتساب عبر customer_service (إن كان connected=true): waiting_for_reply عدد المحادثات التي تنتظر رداً، وconversations ملخصها. الردود تُكتب كمسودات وتُرسل بموافقة المالك من بطاقة تيليجرام أو من المكتب، ولا تقل إنك أرسلت شيئاً. إن كان connected=false فقل إنه غير مربوط بعد.',
     '- وكيل «التسويق» هو خبير السوشال ميديا والحملات (منفصل عن «النشر» الذي يكتب وينشر المنشورات فقط). اجعل agent = «التسويق» لأي طلب عن الأداء أو التقارير أو خطة المحتوى أو الحملات والإعلانات أو المتابعين. إن وُجد marketing في البيانات فهو قراءة حقيقية من ميتا: facebook وinstagram (المتابعون، أفضل المنشورات top، أفضل يوم وساعة timing، عدد المنشورات آخر 30 يوماً) وads (الحملات والإنفاق آخر 30 يوماً). score = تفاعل مرجّح (إعجاب=1، تعليق=2، مشاركة=3).',
     '- marketing_link_status يبيّن حالة الربط الحقيقية من الإعدادات (page_linked, instagram_linked, ads_token_saved). استخدمه لتأكيد حالة الربط. وإن كان ads_token_saved=false فالإعلانات غير مقروءة لأن المالك لم يعد الربط بعد إضافة ads_read. وإن ظهر في marketing خطأ فانقله بنصه كما هو.',
     '- في طلبات التحليل أو التقرير الأسبوعي أو خطة المحتوى أو الحملات: يجوز أن يصل الرد إلى 20 سطراً، منظماً بنقاط قصيرة، مبنياً على الأرقام وحدها، ثم 3 توصيات عملية محددة. لا تخترع أرقاماً؛ وإن كان ads غير مربوط فقل إن بيانات الإعلانات غير متاحة وأعطِ توصية عضوية فقط.',

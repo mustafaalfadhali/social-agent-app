@@ -13,8 +13,10 @@ const money = (n) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const same = (a, b) => { const x = Buffer.from(String(a)), y = Buffer.from(String(b)); return x.length === y.length && crypto.timingSafeEqual(x, y); };
 
-function create({ store, dataDir, commander, payments, log, api: apiOverride }) {
-  let running = false, offset = 0, pairing = null, username = '', failures = 0;
+const WA_PHONE_RE = /^\d{6,20}$/;
+
+function create({ store, dataDir, commander, payments, whatsapp, log, api: apiOverride }) {
+  let running = false, offset = 0, pairing = null, username = '', failures = 0, waEditing = null;
   const stamps = [], history = [];
   const cfg = () => store.get().telegram;
   const redact = (s) => { const t = cfg().token; let m = String(s); if (t) m = m.split(t).join('***'); return m.replace(/bot\d{6,12}:[A-Za-z0-9_-]+/g, 'bot***'); };
@@ -57,6 +59,35 @@ function create({ store, dataDir, commander, payments, log, api: apiOverride }) 
 
   const send = (chatId, text, markup) => api('sendMessage', { chat_id: chatId, text: String(text).slice(0, 3800), ...(markup ? { reply_markup: markup } : {}) });
   const edit = (chatId, messageId, text, markup) => api('editMessageText', { chat_id: chatId, message_id: messageId, text: String(text).slice(0, 3800), reply_markup: markup || { inline_keyboard: [] } });
+
+  // ---------- بطاقة رد العميل (واتساب): لا يُرسل شيء إلا بزر «إرسال» ----------
+  function waCard(cv) {
+    const v = whatsapp.view(cv), d = v.draft;
+    const head = `💬 واتساب · ${v.name || '+' + v.phone}${d && d.urgent ? ' · 🔴 عاجل' : ''}${d && d.category ? ' · ' + d.category : ''}`;
+    const lines = [head, '', 'العميل: ' + v.last.slice(0, 500)];
+    if (d) { if (d.summary) lines.push('الخلاصة: ' + d.summary); lines.push('', 'المسودة:', d.text); if (d.needsHuman) lines.push('', '⚠ يحتاج نظرك (شكوى أو أمر حساس).'); }
+    if (!v.windowOpen) lines.push('', '⏱ مرّت 24 ساعة: لا يمكن الرد الحر الآن.');
+    const kb = d && v.status === 'draft' ? { inline_keyboard: [[{ text: '✅ إرسال', callback_data: `wok:${v.phone}` }], [{ text: '✏️ تعديل', callback_data: `wed:${v.phone}` }, { text: '❌ تجاهل', callback_data: `wno:${v.phone}` }]] } : { inline_keyboard: [] };
+    return { text: lines.join('\n'), keyboard: kb };
+  }
+  async function notifyDraft(cv) {
+    const c = cfg(); if (!c.chatId || !c.token) return;
+    const cd = waCard(cv); await send(c.chatId, cd.text, cd.keyboard);
+  }
+  if (whatsapp) whatsapp.onDraft((cv) => notifyDraft(cv).catch((e) => log('تيليجرام: ' + redact(e.message))));
+  async function onWaCallback(q, act, phone) {
+    const chatId = q.message.chat.id, mid = q.message.message_id;
+    let note = '';
+    try {
+      if (!WA_PHONE_RE.test(phone || '')) throw new Error('محادثة غير صالحة');
+      if (act === 'wok') { await whatsapp.send(phone); note = 'أُرسل الرد ✅'; }
+      if (act === 'wno') { whatsapp.ignore(phone); note = 'تم التجاهل'; }
+      if (act === 'wed') { waEditing = { phone, expires: Date.now() + 10 * 60 * 1000 }; note = 'أرسل نص الرد الجديد'; await send(chatId, '✏️ اكتب الآن نص الرد الذي تريد إرساله للعميل (خلال 10 دقائق).'); }
+    } catch (e) { note = e.message; }
+    const cv = whatsapp.convs()[phone];
+    if (cv) { const cd = waCard(cv); await edit(chatId, mid, cd.text + (act === 'wok' && cv.status === 'answered' ? '\n\n✅ أُرسل الرد' : ''), cd.keyboard).catch(() => {}); }
+    await api('answerCallbackQuery', { callback_query_id: q.id, ...(note ? { text: String(note).slice(0, 190) } : {}) }).catch(() => {});
+  }
 
   // ---------- بطاقة الدفعة (نص + أزرار) ----------
   function card(p, confirming) {
@@ -121,6 +152,13 @@ function create({ store, dataDir, commander, payments, log, api: apiOverride }) 
       return;
     }
     if (!text) return;
+    if (waEditing && whatsapp) { // نص رد معدّل لمحادثة واتساب
+      const ed = waEditing; waEditing = null;
+      if (Date.now() < ed.expires) {
+        const cv = whatsapp.setDraft(ed.phone, text); const cd = waCard(cv);
+        await send(m.chat.id, cd.text, cd.keyboard); return;
+      }
+    }
     history.push({ role: 'user', text }); if (history.length > 8) history.shift();
     const r = await commander.ask({ text, history: history.slice(0, -1) }, store.get());
     history.push({ role: 'office', text: r.reply }); if (history.length > 8) history.shift();
@@ -138,6 +176,7 @@ function create({ store, dataDir, commander, payments, log, api: apiOverride }) 
     const c = cfg();
     if (!q.message || !c.chatId || q.message.chat.id !== c.chatId || (q.from && q.from.id !== c.chatId)) return; // حسابك فقط
     const [act, id, inv] = String(q.data || '').split(':');
+    if (whatsapp && ['wok', 'wed', 'wno'].includes(act)) return onWaCallback(q, act, id);
     const chatId = q.message.chat.id, mid = q.message.message_id;
     if (!['sel', 'ok', 'yes', 'back', 'no'].includes(act) || !UUID_RE.test(id || '')) { await api('answerCallbackQuery', { callback_query_id: q.id }); return; }
     let note = '';

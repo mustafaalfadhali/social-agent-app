@@ -251,6 +251,13 @@ $('btnVsTest').onclick = (e) => withBusy(e.target, async () => {
 });
 $('btnVsOff').onclick = async () => { await call('visits:disconnect'); visitsData = null; await refresh(); fillVisits(); Office.update(state, ctData, undefined, null); toast('تم فصل الزيارات'); };
 
+// ---- واتساب (خدمة العملاء) ----
+function fillWa() { const w = state.wa; $('waUrl').value = w.workerUrl; $('waPhone').value = w.phoneId; $('waStatus').textContent = [w.hasBridgeToken ? 'رمز الجسر محفوظ' : '', w.hasToken ? 'رمز واتساب محفوظ' : ''].filter(Boolean).join(' · '); }
+const waForm = () => ({ workerUrl: $('waUrl').value, phoneId: $('waPhone').value, pullToken: $('waBridge').value, token: $('waToken').value });
+$('btnWaSave').onclick = async () => { await call('wa:save', waForm()); $('waBridge').value = ''; $('waToken').value = ''; toast('تم الحفظ'); await refresh(); fillWa(); };
+$('btnWaTest').onclick = (e) => withBusy(e.target, async () => { await call('wa:save', waForm()); $('waBridge').value = ''; $('waToken').value = ''; const r = await call('wa:test'); toast(`الجسر يعمل ✅ (${r.pending} رسالة بالانتظار)`); await refresh(); fillWa(); });
+$('btnWaOff').onclick = async () => { if (!confirm('فصل واتساب ومسح المحادثات المحفوظة؟')) return; await call('wa:disconnect'); await refresh(); fillWa(); toast('تم فصل واتساب'); };
+
 // ---- تيليجرام ----
 let tgTimer = null;
 function renderTg() {
@@ -379,7 +386,7 @@ $('cmdBar').onsubmit = async (e) => {
 
 (async () => {
   await refresh();
-  fillOdoo(); fillVisits(); renderTg(); loadOdoo(); loadVisits(); setInterval(loadOdoo, 120000); setInterval(loadVisits, 120000);
+  fillOdoo(); fillVisits(); fillWa(); renderTg(); loadOdoo(); loadVisits(); setInterval(loadOdoo, 120000); setInterval(loadVisits, 120000);
   loadContracts();
   fillSettings();
   checkClaude();

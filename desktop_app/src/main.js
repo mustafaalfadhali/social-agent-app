@@ -15,7 +15,7 @@ const payments = require('./payments');
 const telegramBot = require('./telegram');
 const documents = require('./documents');
 const visits = require('./visits');
-let tg;
+let tg, wa;
 const sec = require('./security');
 
 // مجلد اختبار اختياري للتطوير فقط (يُتجاهل في النسخة المثبَّتة)
@@ -79,6 +79,7 @@ function publicState() {
     odoo: { url: d.odoo.url, db: d.odoo.db, login: d.odoo.login, hasKey: !!d.odoo.apiKey },
     proposals: (d.proposals || []).slice(0, 20),
     visits: { url: d.visits.url, hasToken: !!d.visits.token },
+    wa: { workerUrl: d.wa.workerUrl, phoneId: d.wa.phoneId, hasToken: !!d.wa.token, hasBridgeToken: !!d.wa.pullToken, waiting: wa ? wa.status().waiting : 0 },
     telegram: { hasToken: !!d.telegram.token, paired: !!d.telegram.chatId, username: d.telegram.username || '' },
     media: d.media.map((m) => ({ ...m, url: 'file:///' + path.join(mediaDir, m.file).replace(/\\/g, '/') })),
     posts: d.posts,
@@ -139,6 +140,24 @@ function registerIpc() {
   handle('visits:test', () => visits.test(store.get().visits));
   handle('visits:summary', () => visits.summary(store.get().visits));
   handle('visits:disconnect', () => { store.get().visits = { url: 'https://branches.mustafa-server.vip', token: '' }; store.save(); });
+  handle('wa:save', (f) => {
+    if (!f || typeof f !== 'object') throw new Error('مدخل غير صالح');
+    const c = store.get().wa;
+    const url = require('./whatsapp').checkUrl(sec.str(f.workerUrl || c.workerUrl, 300).trim());
+    const phoneId = sec.str(f.phoneId ?? c.phoneId, 30).trim();
+    if (phoneId && !/^\d{8,20}$/.test(phoneId)) throw new Error('Phone Number ID أرقام فقط');
+    const bridge = f.pullToken ? sec.str(f.pullToken, 200).trim() : c.pullToken;
+    if (bridge && bridge.length < 24) throw new Error('رمز الجسر قصير (24 حرفاً على الأقل)');
+    Object.assign(c, { workerUrl: url, phoneId, pullToken: bridge, token: f.token ? sec.str(f.token, 600).trim() : c.token });
+    store.save();
+  });
+  handle('wa:test', () => wa.test());
+  handle('wa:list', () => wa.list());
+  handle('wa:poll', () => wa.poll());
+  handle('wa:draft', (phone, text) => { wa.setDraft(sec.str(phone, 20), sec.str(text, 900)); return wa.list(); });
+  handle('wa:send', async (phone) => { await wa.send(sec.str(phone, 20)); return wa.list(); });
+  handle('wa:ignore', (phone) => { wa.ignore(sec.str(phone, 20)); return wa.list(); });
+  handle('wa:disconnect', () => { const c = store.get().wa; Object.assign(c, { pullToken: '', token: '', phoneId: '', convs: {}, seen: [] }); store.save(); });
   handle('telegram:save', (t) => tg.connect(t));
   handle('telegram:pair', () => tg.startPairing());
   handle('telegram:status', () => tg.status());
@@ -267,8 +286,10 @@ app.whenReady().then(() => {
   registerIpc();
   payments.cleanup(dataDir);
   try { for (const f of fs.readdirSync(docsDir)) { const p = path.join(docsDir, f); if (Date.now() - fs.statSync(p).mtimeMs > 7 * 86400000) fs.rmSync(p, { force: true }); } } catch { /* لا مجلد بعد */ }
-  tg = telegramBot.create({ store, dataDir, commander, payments, log: (m) => store.log(m) });
+  wa = require('./whatsapp').create({ store, claude: require('./claude'), log: (m) => store.log(m) });
+  tg = telegramBot.create({ store, dataDir, commander, payments, whatsapp: wa, log: (m) => store.log(m) });
   tg.start();
+  wa.start(); // يسحب رسائل واتساب كل 30 ثانية إذا كان الجسر مضبوطاً
   contracts.init({ desktop: app.getPath('desktop'), userData: app.getPath('userData'), log: (m) => store.log(m) });
   createWindow(!process.argv.includes('--hidden'));
   createTray();

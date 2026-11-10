@@ -181,6 +181,9 @@ const Office = (() => {
       const pend = st.posts.filter((p) => p.status === 'pending_review').length;
       const logs = st.log.slice(0, 5).map((l) => `<li>${esc2(l.msg)}</li>`).join('') || '<li class="muted">لا نشاط بعد</li>';
       body += `<div class="row"><button id="odRun">تشغيل الآن</button><button class="ghost" id="odPosts">المنشورات${pend ? ' (' + pend + ')' : ''}</button></div><h4>آخر النشاط</h4><ul>${logs}</ul>`;
+    } else if (a.name === 'خدمة العملاء') {
+      body += st.wa && st.wa.hasBridgeToken && st.wa.hasToken ? '<div id="odWa"><p class="muted">جارِ التحميل…</p></div><div class="row"><button class="ghost" id="odWaPoll">فحص الرسائل الآن</button></div><p class="muted">لا يُرسل شيء للعميل قبل ضغطك «إرسال».</p>'
+        : '<p class="muted">لم يُربط واتساب بعد.</p><div class="row"><button id="odGo">ربط واتساب</button></div>';
     } else if (a.name === 'التسويق') {
       body += `<div id="odMk"><p class="muted">جارِ قراءة إحصائيات ميتا…</p></div>` +
         `<div class="row"><button class="ghost" data-ask="اكتب تقرير السوشال ميديا الأسبوعي: الأرقام وأفضل المنشورات وأفضل وقت للنشر مع 3 توصيات">تقرير أسبوعي</button><button class="ghost" data-ask="اقترح خطة محتوى لأسبوعين مناسبة لنشاطنا بناءً على أداء منشوراتنا">خطة محتوى</button><button class="ghost" data-ask="حلّل الحملات الإعلانية والإنفاق آخر 30 يوماً واقترح حملة جديدة بميزانية وجمهور">الإعلانات</button></div>` +
@@ -216,6 +219,8 @@ const Office = (() => {
     const g = (id) => drawer.querySelector(id);
     drawer.querySelectorAll('[data-ask]').forEach((b) => { b.onclick = () => { $('cmdInput').value = b.dataset.ask; drawer.classList.remove('open'); $('cmdBar').requestSubmit(); }; });
     if (g('#odMk')) loadMk(g('#odMk'));
+    if (g('#odWa')) loadWa(g('#odWa'));
+    if (g('#odWaPoll')) g('#odWaPoll').onclick = (e) => withBusy(e.target, async () => { const r = await call('wa:poll'); toast(`تم الفحص (${r.fetched} رسالة جديدة)`); await refresh(); loadWa(g('#odWa')); });
     if (g('#odRun')) g('#odRun').onclick = (e) => withBusy(e.target, async () => { toast('جارِ التوليد…'); await call('agent:runNow'); await refresh(); });
     if (g('#odPosts')) g('#odPosts').onclick = () => document.querySelector('nav button[data-tab=posts]').click();
     if (g('#odGo')) g('#odGo').onclick = () => document.querySelector('nav button[data-tab=accounts]').click();
@@ -243,6 +248,28 @@ const Office = (() => {
     return { ...base, working: true, alert: '', text: `${v.totals.remaining} فرع لم تكتمل زياراته` };
   }
 
+  function waAgent(state) {
+    const w = state.wa || {}, base = { name: 'خدمة العملاء', role: 'يقرأ رسائل عملاء واتساب، ويكتب Claude مسودة الرد، ولا يُرسل شيء إلا بموافقتك.' };
+    if (!w.hasBridgeToken || !w.hasToken || !w.phoneId) return { ...base, working: false, alert: '', text: 'اربط واتساب من الحسابات' };
+    return { ...base, working: true, alert: w.waiting || '', text: w.waiting ? `${w.waiting} محادثة تنتظر ردك` : 'لا رسائل بانتظارك' };
+  }
+
+  async function loadWa(el) {
+    const r = await window.api.call('wa:list');
+    if (!el.isConnected) return;
+    if (!r.ok) { el.innerHTML = `<p class="muted">⚠ ${esc2(r.error)}</p>`; return; }
+    const open = r.data.filter((c) => c.status === 'draft' || c.status === 'new');
+    el.innerHTML = open.map((c) => `<div class="prop"><b>${esc2(c.name || '+' + c.phone)}</b>${c.draft && c.draft.urgent ? ' 🔴 عاجل' : ''}${c.draft ? ' · ' + esc2(c.draft.category || '') : ''}<br><span class="muted">${esc2(c.last.slice(0, 160))}</span>` +
+      (c.draft ? `<textarea data-wa-text="${esc2(c.phone)}" rows="4" style="width:100%;margin-top:6px">${esc2(c.draft.text)}</textarea>${c.draft.needsHuman ? '<div class="muted">⚠ يحتاج نظرك (شكوى أو أمر حساس)</div>' : ''}${c.windowOpen ? '' : '<div class="muted">⏱ مرّت 24 ساعة: لا يمكن الرد الحر</div>'}<div class="row"><button data-wa-send="${esc2(c.phone)}"${c.windowOpen ? '' : ' disabled'}>إرسال</button><button class="ghost" data-wa-no="${esc2(c.phone)}">تجاهل</button></div>` : '<div class="muted">تُكتب المسودة…</div>') + '</div>').join('') || '<p class="muted">لا محادثات بانتظار رد.</p>';
+    el.querySelectorAll('[data-wa-send]').forEach((b) => { b.onclick = () => withBusy(b, async () => {
+      const phone = b.dataset.waSend, ta = el.querySelector(`[data-wa-text="${phone}"]`);
+      await call('wa:draft', phone, ta.value);
+      if (!confirm('إرسال هذا الرد إلى العميل على واتساب؟')) return;
+      await call('wa:send', phone); toast('أُرسل الرد ✅'); await refresh(); loadWa(el);
+    }); });
+    el.querySelectorAll('[data-wa-no]').forEach((b) => { b.onclick = async () => { await call('wa:ignore', b.dataset.waNo); await refresh(); loadWa(el); }; });
+  }
+
   function build(state, ct) {
     const pending = state.posts.filter((p) => p.status === 'pending_review').length;
     const soon = ct ? ct.summary.soon30 + ct.summary.soon90 : 0;
@@ -252,7 +279,7 @@ const Office = (() => {
       { name: 'العقود', role: 'يتابع عقود العملاء ويحسب ما ينتهي قريباً وما تجدد تلقائياً.', working: soon > 0, alert: soon || '', text: soon ? 'عقود تنتهي قريباً' : 'كل العقود سليمة' },
       accountingAgent(state, last.odoo),
       visitsAgent(state, last.visits),
-      { name: 'خدمة العملاء', role: 'سيعرض حالة محادثات واتساب (للعرض فقط).', working: false, alert: '', text: 'قريباً' },
+      waAgent(state),
       { name: 'التسويق', role: 'خبير السوشال ميديا والحملات: يحلّل أداء فيسبوك وانستقرام والإعلانات، ويكتب التقارير وخطط المحتوى، ويقترح الحملات بموافقتك.', working: !!pubPage, alert: '', text: pubPage ? 'جاهز للتحليل والخطط' : 'اربط ميتا من الحسابات' },
     ].map((a) => ({ ...a, color: COL[a.name], text: said[a.name] ? said[a.name] : a.text }));
   }

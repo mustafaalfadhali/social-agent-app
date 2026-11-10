@@ -11,7 +11,7 @@ const dec = (v) => {
   if (typeof v !== 'string' || !v.startsWith(PREFIX)) return v;
   try { return safeStorage.decryptString(Buffer.from(v.slice(PREFIX.length), 'base64')); } catch { return ''; }
 };
-const SECRETS = [['meta', 'appSecret'], ['meta', 'userToken'], ['tiktok', 'clientSecret'], ['tiktok', 'accessToken'], ['tiktok', 'refreshToken'], ['odoo', 'apiKey'], ['telegram', 'token'], ['visits', 'token']];
+const SECRETS = [['meta', 'appSecret'], ['meta', 'userToken'], ['tiktok', 'clientSecret'], ['tiktok', 'accessToken'], ['tiktok', 'refreshToken'], ['odoo', 'apiKey'], ['telegram', 'token'], ['visits', 'token'], ['wa', 'pullToken'], ['wa', 'token']];
 function transform(obj, fn) {
   for (const [a, b] of SECRETS) if (obj[a] && b in obj[a]) obj[a][b] = fn(obj[a][b]);
   if (obj.meta && Array.isArray(obj.meta.pages)) obj.meta.pages.forEach((p) => { if (p && 'token' in p) p.token = fn(p.token); });
@@ -36,6 +36,7 @@ const DEFAULTS = {
   odoo: { url: '', db: '', login: '', apiKey: '' },
   telegram: { token: '', chatId: 0, username: '' },
   visits: { url: 'https://branches.mustafa-server.vip', token: '' },
+  wa: { workerUrl: 'https://siraj-relay.mustafalive2022.workers.dev', pullToken: '', phoneId: '', token: '', convs: {}, seen: [] }, // واتساب: خدمة العملاء
   proposals: [], // مقترحات تنتظر موافقة المالك (دفعات...)
   media: [],   // {id, file, name, addedAt, usedAt}
   posts: [],   // {id, mediaId, caption, status, platforms, results, createdAt, publishedAt}
@@ -58,6 +59,7 @@ function init(dir) {
     data.odoo = { ...DEFAULTS.odoo, ...saved.odoo };
     data.telegram = { ...DEFAULTS.telegram, ...saved.telegram };
     data.visits = { ...DEFAULTS.visits, ...saved.visits };
+    data.wa = { ...structuredClone(DEFAULTS.wa), ...saved.wa };
     transform(data, dec);
     setImmediate(save); // ترحيل أي أسرار قديمة نصية إلى نسخة مشفّرة
   } catch {
