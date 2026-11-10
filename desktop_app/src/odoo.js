@@ -1,9 +1,20 @@
 // اتصال أودو (JSON-RPC) — المرحلة 1: قراءة فقط. أي دالة غير مسموحة تُرفض قبل الإرسال.
 const READ_ONLY = new Set(['search_read', 'read_group', 'search_count', 'read']);
 
+// يقبل https فقط (و http للجهاز المحلي)، بدون بيانات دخول داخل الرابط، ويُرجع الأصل (origin) فقط.
+function checkUrl(raw) {
+  if (!raw) return '';
+  let u;
+  try { u = new URL(raw); } catch { throw new Error('رابط أودو غير صالح'); }
+  const local = ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname);
+  if (u.protocol !== 'https:' && !(u.protocol === 'http:' && local)) throw new Error('رابط أودو يجب أن يبدأ بـ https://');
+  if (u.username || u.password) throw new Error('لا تضع بيانات الدخول داخل الرابط');
+  return u.origin;
+}
+
 async function rpc(url, service, method, args) {
-  const res = await fetch(url.replace(/\/+$/, '') + '/jsonrpc', {
-    method: 'POST',
+  const res = await fetch(checkUrl(url) + '/jsonrpc', {
+    method: 'POST', redirect: 'error', signal: AbortSignal.timeout(30000),
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ jsonrpc: '2.0', method: 'call', params: { service, method, args }, id: Date.now() }),
   });
@@ -62,4 +73,4 @@ async function summary(cfg, now = new Date()) {
   };
 }
 
-module.exports = { test, summary };
+module.exports = { test, summary, checkUrl };

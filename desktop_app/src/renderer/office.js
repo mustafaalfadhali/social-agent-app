@@ -1,6 +1,6 @@
 // المكتب التفاعلي v2: مشهد بكسل كبير يُرسم بالكود، والنصوص HTML فوقه (حادة وعربية سليمة).
 const Office = (() => {
-  const W = 1280, H = 720;
+  const W = 1280, H = 980;
   const cv = document.getElementById('officeCanvas');
   const cx = cv.getContext('2d');
   const layer = document.getElementById('officeLayer');
@@ -11,7 +11,7 @@ const Office = (() => {
   const COL = { 'النشر': '#f5a524', 'العقود': '#60a5fa', 'المحاسبة': '#34d399', 'الزيارات': '#c084fc', 'خدمة العملاء': '#fb7185' };
   const SKIN = ['#f1c7a0', '#e0ac82', '#c68a63', '#f1c7a0', '#d9a679'];
   const HAIR = ['#2a2118', '#1b1b1b', '#3b2a1a', '#4a3322', '#101010'];
-  const POS = [[250, 360], [640, 360], [1030, 360], [440, 600], [840, 600]]; // مراكز المكاتب
+  const POS = [[250, 400], [640, 400], [1030, 400], [440, 740], [840, 740]]; // مراكز المكاتب
 
   const R = (x, y, w, h, c) => { cx.fillStyle = c; cx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
 
@@ -37,7 +37,8 @@ const Office = (() => {
     for (let y = 216; y < H; y += 48) for (let x = 0; x < W; x += 48) R(x, y, 48, 48, ((x + y) / 48) % 2 ? '#2d2a45' : '#292640');
     R(0, 216, W, 10, 'rgba(0,0,0,.28)');
     // سجادة المنتصف
-    R(300, 470, 680, 190, 'rgba(96,165,250,.06)'); R(300, 470, 680, 4, 'rgba(96,165,250,.18)');
+    R(260, 560, 760, 330, 'rgba(96,165,250,.06)'); R(260, 560, 760, 4, 'rgba(96,165,250,.18)');
+    R(0, 880, W, 100, 'rgba(0,0,0,.18)');
   }
 
   function plant(x, y, big) {
@@ -53,6 +54,19 @@ const Office = (() => {
       R(x + 6, y + 48 + r * 46, 118, 4, '#6b4a31');
       ['#60a5fa', '#f5a524', '#34d399', '#fb7185', '#c084fc', '#e5e7eb'].forEach((c, i) => R(x + 12 + i * 18 + (r % 2) * 4, y + 12 + r * 46 + (i % 2) * 4, 12, 32 - (i % 2) * 4, c));
     });
+  }
+
+  function sofa(x, y) { // ركن جلوس
+    R(x, y + 40, 150, 70, '#3a4a78'); R(x, y + 10, 150, 40, '#46598f'); R(x - 14, y + 30, 24, 80, '#3a4a78'); R(x + 140, y + 30, 24, 80, '#3a4a78');
+    R(x + 10, y + 100, 130, 8, 'rgba(0,0,0,.3)'); R(x + 50, y + 44, 50, 6, 'rgba(255,255,255,.15)');
+    R(x + 40, y + 116, 70, 22, '#9b7249'); R(x + 60, y + 108, 14, 10, '#e9edf7'); R(x + 80, y + 110, 14, 8, '#c0392b');
+  }
+
+  function coffee(x, y) { // ركن القهوة
+    R(x, y + 36, 96, 74, '#5a3f26'); R(x, y + 30, 96, 10, '#9b7249');
+    R(x + 10, y - 14, 44, 46, '#2a2f3d'); R(x + 14, y - 10, 36, 14, '#10151f'); R(x + 20, y + 10, 24, 14, '#e9edf7');
+    R(x + 66, y + 8, 18, 22, '#e9edf7'); R(x + 84, y + 14, 6, 10, '#e9edf7');
+    if (frame % 3 === 0) R(x + 72, y - 4, 3, 10, 'rgba(255,255,255,.3)');
   }
 
   function board(x, y) { // لوحة الجدار
@@ -110,12 +124,13 @@ const Office = (() => {
 
   function draw() {
     room();
-    shelf(40, 62); plant(1190, 160, true); plant(84, 520, true); plant(1196, 560, true); board(520, 70 + 20);
+    shelf(40, 62); plant(1190, 160, true); plant(70, 860, true); plant(1200, 860, true); board(520, 70 + 20);
+    sofa(60, 690); coffee(1110, 690);
     agents.forEach((a, i) => workstation(a, i));
   }
 
   // ---------- الطبقة التفاعلية (HTML) ----------
-  const esc2 = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const esc2 = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   function layerHtml() {
     return agents.map((a, i) => {
       const [x, y] = POS[i];

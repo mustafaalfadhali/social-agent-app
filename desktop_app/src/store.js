@@ -1,6 +1,22 @@
 // Simple JSON persistence in the app's data folder.
 const fs = require('fs');
 const path = require('path');
+const { safeStorage } = require('electron');
+
+// الأسرار تُشفَّر على القرص (DPAPI عبر safeStorage) ولا تُحفظ نصاً صريحاً.
+const PREFIX = 'enc1:';
+const canEnc = () => { try { return safeStorage.isEncryptionAvailable(); } catch { return false; } };
+const enc = (v) => (v && typeof v === 'string' && !v.startsWith(PREFIX) && canEnc() ? PREFIX + safeStorage.encryptString(v).toString('base64') : v);
+const dec = (v) => {
+  if (typeof v !== 'string' || !v.startsWith(PREFIX)) return v;
+  try { return safeStorage.decryptString(Buffer.from(v.slice(PREFIX.length), 'base64')); } catch { return ''; }
+};
+const SECRETS = [['meta', 'appSecret'], ['tiktok', 'clientSecret'], ['tiktok', 'accessToken'], ['tiktok', 'refreshToken'], ['odoo', 'apiKey']];
+function transform(obj, fn) {
+  for (const [a, b] of SECRETS) if (obj[a] && b in obj[a]) obj[a][b] = fn(obj[a][b]);
+  if (obj.meta && Array.isArray(obj.meta.pages)) obj.meta.pages.forEach((p) => { if (p && 'token' in p) p.token = fn(p.token); });
+  return obj;
+}
 
 const DEFAULTS = {
   settings: {
@@ -10,7 +26,7 @@ const DEFAULTS = {
     language: 'العربية',
     dailyTimes: '10:00',
     autoPlatforms: { facebook: true, instagram: true, tiktok: false },
-    reviewBeforePublish: false,
+    reviewBeforePublish: true,   // الافتراضي الآمن: مراجعة المالك قبل أي نشر علني
     autoStart: true,
     claudePath: '',
     tiktokPrivacy: 'SELF_ONLY',
@@ -37,6 +53,8 @@ function init(dir) {
     data.meta = { ...DEFAULTS.meta, ...saved.meta };
     data.tiktok = { ...DEFAULTS.tiktok, ...saved.tiktok };
     data.odoo = { ...DEFAULTS.odoo, ...saved.odoo };
+    transform(data, dec);
+    setImmediate(save); // ترحيل أي أسرار قديمة نصية إلى نسخة مشفّرة
   } catch {
     data = structuredClone(DEFAULTS);
   }
@@ -44,7 +62,7 @@ function init(dir) {
 
 function save() {
   const tmp = file + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
+  fs.writeFileSync(tmp, JSON.stringify(transform(structuredClone(data), enc), null, 2), { mode: 0o600 });
   fs.renameSync(tmp, file);
 }
 

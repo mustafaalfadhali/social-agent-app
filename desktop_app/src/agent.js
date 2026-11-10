@@ -32,7 +32,7 @@ async function createPost(mediaId, platforms, { extraHint = '' } = {}) {
   const data = store.get();
   const m = data.media.find((x) => x.id === mediaId);
   if (!m) throw new Error('الصورة غير موجودة');
-  const imagePath = path.join(mediaDir, m.file);
+  const imagePath = path.join(mediaDir, path.basename(m.file));
   const hint = [feedbackHint(data), extraHint].filter(Boolean).join('\n');
   const caption = await claude.captionForImage({ imagePath, settings: data.settings, platforms, extraHint: hint });
   const post = {
@@ -51,7 +51,7 @@ async function publishPost(postId) {
   if (!post) throw new Error('المنشور غير موجود');
   const m = data.media.find((x) => x.id === post.mediaId);
   if (!m) throw new Error('صورة المنشور حُذفت');
-  const imagePath = path.join(mediaDir, m.file);
+  const imagePath = path.join(mediaDir, path.basename(m.file));
   post.results = post.results || {};
   for (const pl of post.platforms) {
     if (post.results[pl]?.ok) continue;

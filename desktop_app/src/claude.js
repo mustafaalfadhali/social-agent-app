@@ -29,13 +29,25 @@ function whereClaude() {
   });
 }
 
+// أعلام الأمان لكل تشغيل: لا خوادم MCP من إعدادات المستخدم، لا أوامر/مهارات، ولا حفظ للجلسات.
+const SAFE_FLAGS = ['--strict-mcp-config', '--disable-slash-commands', '--no-session-persistence'];
+
+// مسار Claude المخصص: ملف موجود باسم claude فقط (يمنع تشغيل برنامج آخر عبر الإعدادات).
+function validOverride(p) {
+  return typeof p === 'string' && path.isAbsolute(p) && /^claude(\.exe|\.cmd)?$/i.test(path.basename(p)) && fs.existsSync(p);
+}
+
 async function findClaude(override) {
-  if (override && fs.existsSync(override)) return override;
+  if (override) { if (!validOverride(override)) throw new Error('مسار Claude غير صالح'); return override; }
   for (const p of candidatePaths()) if (fs.existsSync(p)) return p;
   return whereClaude();
 }
 
-function quote(a) { return /[\s"&|<>^]/.test(a) ? `"${a.replace(/"/g, '""')}"` : a; }
+function quote(a) {
+  a = String(a);
+  if (/[\r\n%!]/.test(a)) throw new Error('وسيط غير آمن');
+  return a === '' || /[\s"&|<>^]/.test(a) ? '"' + a.replace(/"/g, '""') + '"' : a;
+}
 
 function run(exe, args, { input = '', cwd, timeoutMs = 5 * 60 * 1000 } = {}) {
   return new Promise((resolve, reject) => {
@@ -92,7 +104,7 @@ async function captionForImage({ imagePath, settings, platforms, extraHint = '' 
     'أعد فقط JSON بهذا الشكل وبدون أي نص آخر: {"caption": "..."}',
   ].filter(Boolean).join('\n');
 
-  const raw = await run(exe, ['-p', '--output-format', 'json', '--allowedTools', 'Read', '--add-dir', dir], {
+  const raw = await run(exe, ['-p', '--output-format', 'json', '--tools', 'Read', '--allowedTools', 'Read', '--add-dir', dir, ...SAFE_FLAGS], {
     input: prompt,
     cwd: dir,
   });
@@ -107,7 +119,7 @@ async function captionForImage({ imagePath, settings, platforms, extraHint = '' 
 async function askText(prompt, settings) {
   const exe = await findClaude(settings.claudePath);
   if (!exe) throw new Error('Claude Code غير مثبت');
-  const raw = await run(exe, ['-p', '--output-format', 'json'], { input: prompt, cwd: os.tmpdir(), timeoutMs: 3 * 60 * 1000 });
+  const raw = await run(exe, ['-p', '--output-format', 'json', '--tools', '', ...SAFE_FLAGS], { input: prompt, cwd: os.tmpdir(), timeoutMs: 3 * 60 * 1000 });
   const envelope = extractJson(raw);
   if (envelope.is_error) throw new Error(envelope.result || 'خطأ من Claude');
   return String(envelope.result ?? '');

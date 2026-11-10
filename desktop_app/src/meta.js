@@ -18,11 +18,14 @@ async function graph(method, url, params = {}, form) {
   if (method === 'GET') {
     const u = new URL(url.startsWith('http') ? url : GRAPH + url);
     for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
-    res = await fetch(u);
+    if (!/^([a-z0-9-]+\.)*(facebook\.com|fbcdn\.net|instagram\.com)$/i.test(u.hostname) || u.protocol !== 'https:') throw new Error('رابط غير مسموح');
+    res = await fetch(u, { signal: AbortSignal.timeout(60000) });
   } else {
     const body = form || new URLSearchParams(params);
     if (form) for (const [k, v] of Object.entries(params)) form.append(k, v);
-    res = await fetch(url.startsWith('http') ? url : GRAPH + url, { method, body });
+    const target = url.startsWith('http') ? url : GRAPH + url;
+    if (!/^https:\/\/([a-z0-9-]+\.)*(facebook\.com|fbcdn\.net|instagram\.com)\//i.test(target)) throw new Error('رابط غير مسموح');
+    res = await fetch(target, { method, body, signal: AbortSignal.timeout(120000) });
   }
   const json = await res.json().catch(() => ({}));
   if (!res.ok || json.error) throw new Error(`Meta: ${json.error?.message || res.status}`);

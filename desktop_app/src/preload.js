@@ -1,5 +1,11 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+// قائمة القنوات المسموحة فقط (الواجهة لا تستطيع استدعاء غيرها).
+const ALLOWED = new Set(['agent:runNow', 'assistant:ask', 'claude:check', 'claude:install', 'claude:login', 'claude:status', 'contracts:list', 'contracts:rescan', 'media:add', 'media:remove', 'meta:connect', 'meta:connectToken', 'meta:saveApp', 'meta:selectPage', 'odoo:disconnect', 'odoo:save', 'odoo:summary', 'odoo:test', 'post:create', 'post:delete', 'post:publish', 'post:reject', 'post:update', 'settings:save', 'state', 'tiktok:connect', 'tiktok:disconnect', 'tiktok:saveApp']);
+
 contextBridge.exposeInMainWorld('api', {
-  call: (channel, ...args) => ipcRenderer.invoke(channel, ...args),
+  call: (channel, ...args) => {
+    if (!ALLOWED.has(channel)) return Promise.resolve({ ok: false, error: 'قناة غير مسموحة' });
+    return ipcRenderer.invoke(channel, ...args);
+  },
 });

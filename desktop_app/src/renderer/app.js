@@ -22,7 +22,7 @@ async function withBusy(btn, fn) {
   try { await fn(); } catch {} finally { btn.disabled = false; }
 }
 
-function esc(s) { return String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+function esc(s) { return String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
 // Tabs
 document.querySelectorAll('nav button').forEach((b) => b.addEventListener('click', () => {
@@ -58,7 +58,7 @@ function renderLibrary() {
     <div class="tile">
       <img src="${esc(m.url)}" loading="lazy">
       <div class="meta">${esc(m.name)}<br><span class="muted">${m.usedAt ? 'مستخدمة' : 'جديدة'}</span>
-        <div class="row"><button data-create="${m.id}">إنشاء منشور</button><button class="ghost" data-del="${m.id}">حذف</button></div>
+        <div class="row"><button data-create="${esc(m.id)}">إنشاء منشور</button><button class="ghost" data-del="${esc(m.id)}">حذف</button></div>
       </div>
     </div>`).join('') || '<p class="muted">لا توجد صور بعد.</p>';
 }
@@ -73,15 +73,15 @@ function renderPosts() {
     return `<div class="post">
       ${media[p.mediaId] ? `<img src="${esc(media[p.mediaId].url)}">` : ''}
       <div class="body">
-        <span class="status ${p.status}">${ST[p.status] || p.status}</span>
+        <span class="status ${esc(p.status)}">${ST[p.status] || p.status}</span>
         <span class="muted"> ${p.platforms.map((x) => PL[x]).join('، ')} · ${new Date(p.createdAt).toLocaleString('ar')}</span>
-        <textarea data-cap="${p.id}" ${editable ? '' : 'readonly'}>${esc(p.caption)}</textarea>
+        <textarea data-cap="${esc(p.id)}" ${editable ? '' : 'readonly'}>${esc(p.caption)}</textarea>
         ${res ? `<p class="muted">${res}</p>` : ''}${stats}
         ${p.feedback ? `<p class="muted">ملاحظتك: ${esc(p.feedback)}</p>` : ''}
         <div class="row">
-          ${editable ? `<button data-pub="${p.id}">${p.status === 'failed' ? 'إعادة المحاولة' : 'نشر الآن'}</button>
-          <button class="ghost" data-rej="${p.id}">رفض</button>` : ''}
-          <button class="ghost" data-delpost="${p.id}">حذف</button>
+          ${editable ? `<button data-pub="${esc(p.id)}">${p.status === 'failed' ? 'إعادة المحاولة' : 'نشر الآن'}</button>
+          <button class="ghost" data-rej="${esc(p.id)}">رفض</button>` : ''}
+          <button class="ghost" data-delpost="${esc(p.id)}">حذف</button>
         </div>
       </div></div>`;
   }).join('') || '<p class="muted">لا توجد منشورات بعد.</p>';
@@ -92,7 +92,7 @@ function renderAccounts() {
   $('metaRedirect').textContent = m.redirect;
   $('metaAppId').value = m.appId; $('metaConfigId').value = m.configId;
   $('metaPage').innerHTML = m.pages.map((p) =>
-    `<option value="${p.id}" ${p.id === m.selectedPageId ? 'selected' : ''}>${esc(p.name)}${p.igUsername ? ' + @' + esc(p.igUsername) : ' (بدون إنستغرام)'}</option>`).join('')
+    `<option value="${esc(p.id)}" ${p.id === m.selectedPageId ? 'selected' : ''}>${esc(p.name)}${p.igUsername ? ' + @' + esc(p.igUsername) : ' (بدون إنستغرام)'}</option>`).join('')
     || '<option>غير مربوط</option>';
   const t = state.tiktok;
   $('ttRedirect').textContent = t.redirect;
@@ -108,6 +108,13 @@ function fillSettings() {
   $('pTiktok').checked = s.autoPlatforms.tiktok; $('sReview').checked = s.reviewBeforePublish;
   $('sAutoStart').checked = s.autoStart; $('sClaudePath').value = s.claudePath; $('sTtPrivacy').value = s.tiktokPrivacy;
 }
+
+$('btnClaudeCheck').onclick = async (e) => {
+  e.target.disabled = true; $('claudeCheck').textContent = 'جارِ الفحص…';
+  const r = await window.api.call('claude:check');
+  $('claudeCheck').textContent = r.ok ? `✅ الدخول سليم (رد: ${r.data.reply}، ${r.data.seconds} ث)` : '❌ ' + r.error;
+  e.target.disabled = false;
+};
 
 async function checkClaude() {
   const r = await window.api.call('claude:status');
@@ -197,6 +204,7 @@ function renderContracts() {
   if (!ctData) return;
   const s = ctData.summary;
   $('ctDate').textContent = `بتاريخ ${ctData.today}`;
+  $('ctSource').textContent = ctData.live ? `متصل بمجلدي شعلة الجزيرة وشعلة الجديدة على سطح المكتب — ${ctData.filesSeen} ملف Word، آخر فحص ${new Date(ctData.lastScan).toLocaleTimeString('ar')}. أي عقد تحفظه أو تعدّله يُضاف تلقائياً.` : 'يعرض آخر نسخة محفوظة، وجارِ الاتصال بمجلدات سطح المكتب…';
   $('ctSummary').innerHTML = ['soon30', 'soon90', 'active', 'renewed'].map((k) =>
     `<div class="card"><div class="muted">${CT[k]}</div><div class="big ct-${k}">${s[k]}</div></div>`).join('');
   const q = $('ctSearch').value.trim(), f = $('ctFilter').value;
@@ -210,6 +218,8 @@ function renderContracts() {
       </div>
     </div>`).join('') || '<p class="muted">لا نتائج</p>';
 }
+$('btnCtScan').onclick = (e) => withBusy(e.target, async () => { const r = await call('contracts:rescan'); await loadContracts(); toast(`تم الفحص: ${r.contracts} عقد من ${r.filesSeen} ملف`); });
+setInterval(loadContracts, 60000);
 $('ctSearch').oninput = renderContracts; $('ctFilter').onchange = renderContracts;
 
 // ---- أودو (قراءة فقط) ----
@@ -248,7 +258,7 @@ $('cmdBar').onsubmit = async (e) => {
     const r = await window.api.call('assistant:ask', { text, history: chat.filter((m) => m.text !== 'أفكر…').slice(-8, -1).map((m) => ({ role: m.role === 'user' ? 'user' : 'office', text: m.text })) });
     chat.pop();
     if (r.ok) { addChat('ag', r.data.reply, r.data.agent, r.data.proposal); Office.say(r.data.agent, r.data.reply.split('\n')[0].slice(0, 40)); }
-    else addChat('ag', '⚠ ' + (/OAuth|authenticate|login/i.test(r.error) ? 'Claude Code غير مسجّل الدخول. افتح الإعدادات واضغط «تسجيل الدخول».' : r.error), 'المكتب');
+    else addChat('off', '⚠ تعذّر الرد من Claude Code: ' + r.error + (/OAuth|authenticate|login/i.test(r.error) ? '\nسجّل الدخول (/login في نافذة Claude) ثم اضغط «فحص الدخول» في الرئيسية.' : ''), 'المكتب');
   } finally { btn.disabled = false; $('cmdInput').disabled = false; $('cmdInput').focus(); }
 };
 

@@ -17,6 +17,7 @@ function b64url(buf) { return buf.toString('base64').replace(/\+/g, '-').replace
 
 async function tokenRequest(params) {
   const res = await fetch(`${API}/oauth/token/`, {
+    signal: AbortSignal.timeout(60000),
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams(params),
@@ -67,6 +68,7 @@ async function ensureToken(tk) {
 async function api(tk, method, p, body) {
   await ensureToken(tk);
   const res = await fetch(API + p, {
+    signal: AbortSignal.timeout(60000),
     method,
     headers: { Authorization: `Bearer ${tk.accessToken}`, 'Content-Type': 'application/json; charset=UTF-8' },
     body: body ? JSON.stringify(body) : undefined,
@@ -99,7 +101,9 @@ async function publishImage(tk, imagePath, caption, privacy, workDir) {
       post_info: { title: caption.slice(0, 2200), privacy_level: level, disable_comment: false, disable_duet: false, disable_stitch: false },
       source_info: { source: 'FILE_UPLOAD', video_size: size, chunk_size: size, total_chunk_count: 1 },
     });
+    if (!/^https:\/\/([a-z0-9-]+\.)*(tiktokapis\.com|tiktok\.com|tiktokcdn\.com)\//i.test(String(init.data.upload_url))) throw new Error('رابط رفع غير مسموح');
     const up = await fetch(init.data.upload_url, {
+      signal: AbortSignal.timeout(10 * 60 * 1000),
       method: 'PUT',
       headers: { 'Content-Type': 'video/mp4', 'Content-Length': String(size), 'Content-Range': `bytes 0-${size - 1}/${size}` },
       body: fs.readFileSync(video),
