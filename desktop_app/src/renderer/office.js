@@ -1,87 +1,192 @@
-// المكتب التفاعلي: مشهد بكسل يعرض الوكلاء وحالتهم الحية (يرسم بالكامل بالكود، بدون صور).
+// المكتب التفاعلي v2: مشهد بكسل كبير يُرسم بالكود، والنصوص HTML فوقه (حادة وعربية سليمة).
 const Office = (() => {
-  const W = 960, H = 540;
+  const W = 1280, H = 720;
   const cv = document.getElementById('officeCanvas');
   const cx = cv.getContext('2d');
-  cx.imageSmoothingEnabled = false;
-  let agents = [], frame = 0;
+  const layer = document.getElementById('officeLayer');
+  const drawer = document.getElementById('officeDrawer');
+  let agents = [], frame = 0, selected = null, hover = null, last = { state: null, ct: null };
 
-  const COLORS = { 'النشر': '#f5a524', 'العقود': '#60a5fa', 'المحاسبة': '#34d399', 'الزيارات': '#c084fc', 'خدمة العملاء': '#fb7185' };
-  const SLOTS = [[150, 170], [480, 170], [810, 170], [315, 400], [645, 400]];
+  const COL = { 'النشر': '#f5a524', 'العقود': '#60a5fa', 'المحاسبة': '#34d399', 'الزيارات': '#c084fc', 'خدمة العملاء': '#fb7185' };
+  const SKIN = ['#f1c7a0', '#e0ac82', '#c68a63', '#f1c7a0', '#d9a679'];
+  const HAIR = ['#2a2118', '#1b1b1b', '#3b2a1a', '#4a3322', '#101010'];
+  const POS = [[250, 360], [640, 360], [1030, 360], [440, 600], [840, 600]]; // مراكز المكاتب
 
-  function rect(x, y, w, h, c) { cx.fillStyle = c; cx.fillRect(Math.round(x), Math.round(y), w, h); }
+  const R = (x, y, w, h, c) => { cx.fillStyle = c; cx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
 
-  function floor() {
-    rect(0, 0, W, H, '#1c2333');
-    for (let y = 0; y < H; y += 40) for (let x = 0; x < W; x += 40) rect(x, y, 40, 40, ((x + y) / 40) % 2 ? '#212a3d' : '#1e2638');
-    rect(0, 0, W, 64, '#2b3550'); rect(0, 60, W, 6, '#3b4a6e');
-    cx.fillStyle = '#8fa0c8'; cx.font = 'bold 20px sans-serif'; cx.textAlign = 'center'; cx.direction = 'rtl';
-    cx.fillText('مكتب سِراج', W / 2, 40);
+  // ---------- الخلفية ----------
+  function room() {
+    R(0, 0, W, H, '#232c44');
+    // الجدار
+    R(0, 0, W, 210, '#2d3857'); R(0, 196, W, 14, '#3a4770'); R(0, 210, W, 6, '#1b2236');
+    for (let x = 0; x < W; x += 80) R(x, 0, 2, 196, 'rgba(255,255,255,.035)');
+    // النوافذ (مدينة ليلاً)
+    [[110, 34], [470, 34], [830, 34]].forEach(([wx, wy]) => {
+      R(wx - 6, wy - 6, 312, 152, '#141a2b'); R(wx, wy, 300, 140, '#101a33');
+      for (let i = 0; i < 18; i++) R(wx + ((i * 53) % 290), wy + ((i * 29) % 70), 3, 3, 'rgba(255,255,255,.7)');
+      [[10, 60, 36, 80], [56, 40, 30, 100], [96, 70, 44, 70], [150, 30, 34, 110], [194, 58, 40, 82], [244, 46, 46, 94]].forEach(([bx, by, bw, bh], k) => {
+        R(wx + bx, wy + by, bw, bh, '#1b2547');
+        for (let yy = by + 8; yy < by + bh - 6; yy += 14) for (let xx = bx + 6; xx < bx + bw - 6; xx += 12)
+          if (((xx + yy + k) % 3)) R(wx + xx, wy + yy, 5, 6, ((xx * yy + frame / 9 | 0) % 7) ? 'rgba(255,214,120,.65)' : 'rgba(255,214,120,.25)');
+      });
+      R(wx + 148, wy, 4, 140, '#141a2b'); R(wx, wy + 68, 300, 4, '#141a2b');
+    });
+    // أرضية سجادة مقسّمة
+    R(0, 216, W, H - 216, '#2a2740');
+    for (let y = 216; y < H; y += 48) for (let x = 0; x < W; x += 48) R(x, y, 48, 48, ((x + y) / 48) % 2 ? '#2d2a45' : '#292640');
+    R(0, 216, W, 10, 'rgba(0,0,0,.28)');
+    // سجادة المنتصف
+    R(300, 470, 680, 190, 'rgba(96,165,250,.06)'); R(300, 470, 680, 4, 'rgba(96,165,250,.18)');
   }
 
-  function desk(a, x, y, on) {
-    rect(x - 70, y + 30, 140, 30, '#7a5a3a'); rect(x - 70, y + 58, 140, 6, '#5b4129');
-    rect(x - 28, y - 6, 56, 38, '#10151f'); rect(x - 24, y - 2, 48, 30, on ? '#1f3a5f' : '#171c28');
-    if (on) for (let i = 0; i < 4; i++) rect(x - 20, y + 2 + i * 7, 14 + ((frame + i) % 3) * 8, 3, a.color);
-    rect(x - 4, y + 32, 8, 4, '#10151f');
-    rect(x + 46, y + 8, 6, 22, '#444'); rect(x + 40, y + 2, 18, 8, on ? '#ffd84d' : '#555');
-    if (on) { cx.fillStyle = 'rgba(255,216,77,0.14)'; cx.beginPath(); cx.arc(x + 49, y + 16, 46, 0, 7); cx.fill(); }
+  function plant(x, y, big) {
+    const s = big ? 1.4 : 1;
+    R(x - 18 * s, y + 24 * s, 36 * s, 30 * s, '#8b5a3c'); R(x - 22 * s, y + 20 * s, 44 * s, 8 * s, '#a06a46');
+    [[-4, -30, 8, 54], [-22, -14, 8, 38], [14, -14, 8, 38], [-12, -22, 8, 44], [6, -22, 8, 44]].forEach(([dx, dy, w, h]) => R(x + dx * s, y + dy * s, w * s, h * s, '#3c9d63'));
+    R(x - 4 * s, y - 30 * s, 8 * s, 6 * s, '#58c283');
   }
 
-  function person(a, x, y, on) {
-    const bob = on && frame % 2 ? -2 : 0;
-    rect(x - 12, y + 34 + bob, 24, 22, a.color);
-    rect(x - 10, y + 12 + bob, 20, 22, '#f1c7a0');
-    rect(x - 12, y + 8 + bob, 24, 8, '#2a2118');
-    rect(x - 6, y + 22 + bob, 3, 3, '#222'); rect(x + 3, y + 22 + bob, 3, 3, '#222');
-  }
-
-  function bubble(text, x, y, color) {
-    cx.font = '15px sans-serif'; cx.textAlign = 'center'; cx.direction = 'rtl';
-    const w = Math.min(230, cx.measureText(text).width + 22);
-    rect(x - w / 2, y, w, 28, '#f4f6fb'); rect(x - 5, y + 28, 10, 6, '#f4f6fb');
-    rect(x - w / 2, y, 4, 28, color);
-    cx.fillStyle = '#1b2233'; cx.fillText(text, x, y + 19, w - 14);
-  }
-
-  function draw() {
-    floor();
-    agents.forEach((a, i) => {
-      const [x, y] = SLOTS[i]; const on = a.working;
-      desk(a, x, y, on); person(a, x - 30, y - 6, on);
-      cx.font = 'bold 17px sans-serif'; cx.textAlign = 'center'; cx.direction = 'rtl';
-      cx.fillStyle = a.color; cx.fillText(a.name, x, y + 90);
-      bubble(a.text, x, y - 70, a.color);
-      if (a.alert) { rect(x + 58, y - 66, 22, 22, '#ef4444'); cx.fillStyle = '#fff'; cx.font = 'bold 15px sans-serif'; cx.fillText(String(a.alert), x + 69, y - 50); }
+  function shelf(x, y) {
+    R(x, y, 130, 150, '#5b3f2a'); R(x + 6, y + 6, 118, 138, '#3d2a1b');
+    [0, 1, 2].forEach((r) => {
+      R(x + 6, y + 48 + r * 46, 118, 4, '#6b4a31');
+      ['#60a5fa', '#f5a524', '#34d399', '#fb7185', '#c084fc', '#e5e7eb'].forEach((c, i) => R(x + 12 + i * 18 + (r % 2) * 4, y + 12 + r * 46 + (i % 2) * 4, 12, 32 - (i % 2) * 4, c));
     });
   }
 
+  function board(x, y) { // لوحة الجدار
+    R(x, y, 240, 112, '#141a2b'); R(x + 6, y + 6, 228, 100, '#1d2742');
+    [20, 44, 68].forEach((yy, i) => R(x + 20, y + yy, 60 + i * 38 + ((frame + i) % 4) * 6, 8, ['#f5a524', '#60a5fa', '#34d399'][i]));
+  }
+
+  // ---------- المكتب والشخصية ----------
+  function workstation(a, i) {
+    const [x, y] = POS[i], on = a.working, c = a.color;
+    const hov = hover === i || selected === i;
+    // ظل + هالة التحديد
+    R(x - 150, y + 92, 300, 18, 'rgba(0,0,0,.3)');
+    if (hov) { cx.strokeStyle = c; cx.lineWidth = 3; cx.setLineDash([10, 6]); cx.strokeRect(x - 156, y - 150, 312, 262); cx.setLineDash([]); }
+    // الكرسي
+    R(x - 38, y - 6, 76, 66, '#1a1f33'); R(x - 32, y - 12, 64, 12, '#232a44'); R(x - 8, y + 60, 16, 28, '#2a3150');
+    person(a, i, x, y - 50, on);
+    // المكتب
+    R(x - 140, y + 46, 280, 20, '#9b7249'); R(x - 140, y + 62, 280, 12, '#6e4f30'); R(x - 128, y + 74, 14, 22, '#5a3f26'); R(x + 114, y + 74, 14, 22, '#5a3f26');
+    // الشاشة
+    R(x - 56, y - 52, 112, 82, '#0d1220'); R(x - 50, y - 46, 100, 66, on ? '#16315a' : '#141a2c');
+    R(x - 8, y + 30, 16, 14, '#0d1220'); R(x - 26, y + 42, 52, 6, '#0d1220');
+    if (on) for (let k = 0; k < 6; k++) R(x - 44, y - 40 + k * 10, 20 + ((frame * 3 + k * 7) % 5) * 12, 5, k % 2 ? c : '#9fc6ff');
+    else R(x - 44, y - 40, 40, 5, '#2a3350');
+    // لوحة المفاتيح + كوب
+    R(x - 42, y + 50, 84, 8, '#d0d6e6'); R(x + 78, y + 28, 22, 26, '#e9edf7'); R(x + 100, y + 34, 6, 14, '#e9edf7'); R(x + 80, y + 30, 18, 6, '#6b4a31');
+    if (on) { R(x + 84, y + 12 - (frame % 3) * 4, 3, 10, 'rgba(255,255,255,.35)'); }
+    // المصباح
+    R(x - 112, y + 24, 6, 26, '#4a4f60'); R(x - 124, y + 14, 30, 12, on ? '#ffd84d' : '#6b7080');
+    if (on) { const g = cx.createRadialGradient(x - 109, y + 30, 4, x - 109, y + 30, 90); g.addColorStop(0, 'rgba(255,216,77,.28)'); g.addColorStop(1, 'rgba(255,216,77,0)'); cx.fillStyle = g; cx.fillRect(x - 200, y - 60, 180, 180); }
+    // نبتة صغيرة
+    R(x + 108, y + 14, 16, 18, '#3c9d63'); R(x + 104, y + 30, 24, 16, '#8b5a3c');
+  }
+
+  function person(a, i, x, y, on) {
+    const bob = on ? ((frame % 2) ? -2 : 0) : ((frame % 6 === 0) ? 2 : 0), c = a.color;
+    // الجسم
+    R(x - 24, y + 36 + bob, 48, 56, c); R(x - 24, y + 36 + bob, 48, 8, 'rgba(255,255,255,.2)');
+    // الرقبة والرأس
+    R(x - 6, y + 28 + bob, 12, 10, SKIN[i]); R(x - 20, y - 12 + bob, 40, 42, SKIN[i]);
+    // الشعر
+    R(x - 22, y - 18 + bob, 44, 16, HAIR[i]); R(x - 22, y - 8 + bob, 6, 14, HAIR[i]); R(x + 16, y - 8 + bob, 6, 14, HAIR[i]);
+    // العيون والفم
+    const blink = frame % 9 === 0;
+    R(x - 11, y + 8 + bob, 6, blink ? 2 : 7, '#1b1b1b'); R(x + 5, y + 8 + bob, 6, blink ? 2 : 7, '#1b1b1b');
+    R(x - 6, y + 22 + bob, 12, 3, on ? '#7a3b2e' : '#9b5a46');
+    // نظارة للعقود/المحاسبة
+    if (i === 1 || i === 2) { cx.strokeStyle = '#1b1b1b'; cx.lineWidth = 2; cx.strokeRect(x - 15, y + 5 + bob, 13, 11); cx.strokeRect(x + 2, y + 5 + bob, 13, 11); }
+    // الذراعان (تكتب عند العمل)
+    const t = on ? (frame % 2 ? 6 : 0) : 0;
+    R(x - 34, y + 50 + bob, 12, 36, c); R(x + 22, y + 50 + bob, 12, 36, c);
+    R(x - 36, y + 84 + bob - t, 14, 10, SKIN[i]); R(x + 22, y + 84 + bob - (on ? 6 - t : 0), 14, 10, SKIN[i]);
+    if (a.alert) { R(x + 26, y - 32 + bob, 6, 18, '#ef4444'); R(x + 26, y - 10 + bob, 6, 6, '#ef4444'); }
+  }
+
+  function draw() {
+    room();
+    shelf(40, 62); plant(1190, 160, true); plant(84, 520, true); plant(1196, 560, true); board(520, 70 + 20);
+    agents.forEach((a, i) => workstation(a, i));
+  }
+
+  // ---------- الطبقة التفاعلية (HTML) ----------
+  const esc2 = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  function layerHtml() {
+    return agents.map((a, i) => {
+      const [x, y] = POS[i];
+      const L = ((x - 150) / W * 100).toFixed(2), T = ((y - 150) / H * 100).toFixed(2), Wd = (300 / W * 100).toFixed(2), Hd = (262 / H * 100).toFixed(2);
+      return `<div class="ag" data-i="${i}" style="left:${L}%;top:${T}%;width:${Wd}%;height:${Hd}%;--c:${a.color}">
+        <div class="bub ${a.working ? 'on' : ''}">${a.alert ? `<span class="bd">${esc2(a.alert)}</span>` : ''}${esc2(a.text)}</div>
+        <div class="plate"><i class="dot ${a.working ? 'on' : ''}"></i>${esc2(a.name)}</div></div>`;
+    }).join('');
+  }
+
+  function bind() {
+    layer.querySelectorAll('.ag').forEach((el) => {
+      const i = +el.dataset.i;
+      el.onmouseenter = () => { hover = i; draw(); };
+      el.onmouseleave = () => { hover = null; draw(); };
+      el.onclick = () => { selected = i; draw(); openDrawer(i); };
+    });
+  }
+
+  function openDrawer(i) {
+    const a = agents[i], st = last.state, ct = last.ct;
+    let body = `<p class="muted">${esc2(a.role)}</p><div class="st"><span class="chip ${a.working ? 'ok' : ''}">${a.working ? 'يعمل الآن' : 'جاهز'}</span> ${esc2(a.text)}</div>`;
+    if (a.name === 'النشر') {
+      const pend = st.posts.filter((p) => p.status === 'pending_review').length;
+      const logs = st.log.slice(0, 5).map((l) => `<li>${esc2(l.msg)}</li>`).join('') || '<li class="muted">لا نشاط بعد</li>';
+      body += `<div class="row"><button id="odRun">تشغيل الآن</button><button class="ghost" id="odPosts">المنشورات${pend ? ' (' + pend + ')' : ''}</button></div><h4>آخر النشاط</h4><ul>${logs}</ul>`;
+    } else if (a.name === 'العقود') {
+      const soon = ct ? ct.items.filter((c) => c.days >= 0 && c.days <= 90) : [];
+      body += `<div class="row"><button id="odCt">فتح العقود</button></div><h4>تنتهي خلال 90 يوماً</h4><ul>${soon.map((c) => `<li>${esc2(c.client)}<br><span class="muted">باقي ${c.days} يوم · ${esc2(c.end)}</span></li>`).join('') || '<li class="muted">لا شيء</li>'}</ul>`;
+    } else {
+      body += `<p class="muted">لم يُربط بالبرنامج بعد، وسيبدأ عمله عند الربط.</p>`;
+    }
+    drawer.innerHTML = `<button class="x" id="odX">✕</button><h3 style="color:${a.color}">${esc2(a.name)}</h3>${body}`;
+    drawer.classList.toggle('r', POS[i][0] < W / 2);
+    drawer.classList.add('open');
+    drawer.querySelector('#odX').onclick = () => { drawer.classList.remove('open'); selected = null; draw(); };
+    const g = (id) => drawer.querySelector(id);
+    if (g('#odRun')) g('#odRun').onclick = (e) => withBusy(e.target, async () => { toast('جارِ التوليد…'); await call('agent:runNow'); await refresh(); });
+    if (g('#odPosts')) g('#odPosts').onclick = () => document.querySelector('nav button[data-tab=posts]').click();
+    if (g('#odCt')) g('#odCt').onclick = () => document.querySelector('nav button[data-tab=contracts]').click();
+  }
+
+  // ---------- البيانات ----------
   function build(state, ct) {
     const pending = state.posts.filter((p) => p.status === 'pending_review').length;
     const soon = ct ? ct.summary.soon30 + ct.summary.soon90 : 0;
     return [
-      { name: 'النشر', working: !!state.agentBusy, alert: pending || '', text: state.agentBusy ? 'أكتب منشوراً الآن…' : pending ? `${pending} منشور ينتظر موافقتك` : 'جاهز للنشر' },
-      { name: 'العقود', working: soon > 0, alert: soon || '', text: soon ? `${soon} عقود تنتهي قريباً` : 'كل العقود سليمة' },
-      { name: 'المحاسبة', working: false, alert: '', text: 'غير مربوط بالبرنامج بعد' },
-      { name: 'الزيارات', working: false, alert: '', text: 'قريباً' },
-      { name: 'خدمة العملاء', working: false, alert: '', text: 'قريباً (عرض فقط)' },
-    ].map((a) => ({ ...a, color: COLORS[a.name] }));
+      { name: 'النشر', role: 'يكتب المنشورات وينشرها على فيسبوك وإنستغرام وتيك توك، وما يحتاج موافقتك يقف عندك.', working: !!state.agentBusy, alert: pending || '', text: state.agentBusy ? 'أكتب منشوراً الآن…' : pending ? 'منشورات تنتظر موافقتك' : 'جاهز للنشر' },
+      { name: 'العقود', role: 'يتابع عقود العملاء ويحسب ما ينتهي قريباً وما تجدد تلقائياً.', working: soon > 0, alert: soon || '', text: soon ? 'عقود تنتهي قريباً' : 'كل العقود سليمة' },
+      { name: 'المحاسبة', role: 'سيصدر الفواتير ويسجّل الدفعات في أودو باسم شعلة الخدمات.', working: false, alert: '', text: 'غير مربوط بعد' },
+      { name: 'الزيارات', role: 'سيتابع الزيارات المستحقة من برنامج زيارات الفروع.', working: false, alert: '', text: 'قريباً' },
+      { name: 'خدمة العملاء', role: 'سيعرض حالة محادثات واتساب (للعرض فقط).', working: false, alert: '', text: 'قريباً' },
+    ].map((a) => ({ ...a, color: COL[a.name] }));
   }
 
-  function renderBox(state, ct) {
-    const box = document.getElementById('officeBox');
-    const pending = state.posts.filter((p) => p.status === 'pending_review');
-    const soon = ct ? ct.items.filter((i) => i.days >= 0 && i.days <= 90) : [];
-    box.innerHTML = '<h3>يحتاج موافقتك</h3>' +
-      (pending.length ? `<p>📝 ${pending.length} منشور بانتظار المراجعة <button class="ghost" id="goPosts">فتح</button></p>` : '<p class="muted">لا منشورات معلّقة</p>') +
-      '<h3>عقود تنتهي قريباً</h3>' +
-      (soon.length ? soon.map((i) => `<p>⏳ ${esc(i.client)}<br><span class="muted">باقي ${i.days} يوم · ${esc(i.end)}</span></p>`).join('') : '<p class="muted">لا شيء خلال 90 يوماً</p>');
-    const g = document.getElementById('goPosts');
-    if (g) g.onclick = () => document.querySelector('nav button[data-tab=posts]').click();
+  function kpis(state, ct) {
+    const pend = state.posts.filter((p) => p.status === 'pending_review').length;
+    const soon = ct ? ct.summary.soon30 + ct.summary.soon90 : 0;
+    const working = agents.filter((a) => a.working).length;
+    document.getElementById('officeKpis').innerHTML =
+      `<div class="kpi"><b>${working}</b><span>وكلاء يعملون</span></div><div class="kpi ${pend ? 'warn' : ''}"><b>${pend}</b><span>بانتظار موافقتك</span></div><div class="kpi ${soon ? 'warn' : ''}"><b>${soon}</b><span>عقود تنتهي قريباً</span></div>`;
   }
 
-  function update(state, ct) { agents = build(state, ct); draw(); renderBox(state, ct); }
+  function update(state, ct) {
+    last = { state, ct };
+    const prev = layer.children.length;
+    agents = build(state, ct);
+    layer.innerHTML = layerHtml(); bind();
+    kpis(state, ct); draw();
+    if (selected !== null && drawer.classList.contains('open')) openDrawer(selected);
+  }
 
-  setInterval(() => { frame++; if (agents.length) draw(); }, 600);
+  setInterval(() => { frame++; if (agents.length) draw(); }, 500);
   return { update };
 })();

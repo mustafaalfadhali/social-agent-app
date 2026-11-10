@@ -39,9 +39,13 @@
     <!-- المكتبة -->
     <!-- المكتب -->
     <section id="office" class="tab">
-      <h1>المكتب</h1>
-      <div class="office-wrap"><canvas id="officeCanvas" width="960" height="540"></canvas><div id="officeBox" class="card"></div></div>
-      <p class="muted">كل وكيل على مكتبه: المصباح مضيء عندما يعمل، والفقاعة تعرض ما يفعله الآن.</p>
+      <div class="head"><h1>المكتب</h1><div id="officeKpis" class="kpis"></div></div>
+      <div class="office-stage">
+        <canvas id="officeCanvas" width="1280" height="720"></canvas>
+        <div id="officeLayer"></div>
+        <aside id="officeDrawer" class="drawer"></aside>
+      </div>
+      <p class="muted">اضغط على أي وكيل لتفتح تفاصيله وأزراره. المصباح مضيء عندما يعمل، والفقاعة تعرض ما يفعله الآن.</p>
     </section>
 
     <section id="library" class="tab">
