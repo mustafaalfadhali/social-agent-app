@@ -8,10 +8,10 @@ const Office = (() => {
   let agents = [], frame = 0, selected = null, hover = null, last = { state: null, ct: null, odoo: null, visits: null };
   const money = (n) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(n) + ' ر.س';
 
-  const COL = { 'النشر': '#f5a524', 'العقود': '#60a5fa', 'المحاسبة': '#34d399', 'الزيارات': '#c084fc', 'خدمة العملاء': '#fb7185' };
-  const SKIN = ['#f1c7a0', '#e0ac82', '#c68a63', '#f1c7a0', '#d9a679'];
-  const HAIR = ['#2a2118', '#1b1b1b', '#3b2a1a', '#4a3322', '#101010'];
-  const POS = [[250, 400], [640, 400], [1030, 400], [440, 740], [840, 740]]; // مراكز المكاتب
+  const COL = { 'النشر': '#f5a524', 'العقود': '#60a5fa', 'المحاسبة': '#34d399', 'الزيارات': '#c084fc', 'خدمة العملاء': '#fb7185', 'التسويق': '#2dd4bf' };
+  const SKIN = ['#f1c7a0', '#e0ac82', '#c68a63', '#f1c7a0', '#d9a679', '#e8b996'];
+  const HAIR = ['#2a2118', '#1b1b1b', '#3b2a1a', '#4a3322', '#101010', '#2f2219'];
+  const POS = [[250, 400], [640, 400], [1030, 400], [250, 740], [640, 740], [1030, 740]]; // مراكز المكاتب
 
   const R = (x, y, w, h, c) => { cx.fillStyle = c; cx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
 
@@ -124,8 +124,8 @@ const Office = (() => {
 
   function draw() {
     room();
-    shelf(40, 62); plant(1190, 160, true); plant(70, 860, true); plant(1200, 860, true); board(520, 70 + 20);
-    sofa(60, 690); coffee(1110, 690);
+    shelf(40, 62); plant(70, 860, true); plant(1220, 860, true); board(520, 70 + 20);
+    coffee(1130, 76); // ركن القهوة على الجدار (مكان المكتب السادس في الأسفل)
     agents.forEach((a, i) => workstation(a, i));
   }
 
@@ -180,10 +180,11 @@ const Office = (() => {
     if (a.name === 'النشر') {
       const pend = st.posts.filter((p) => p.status === 'pending_review').length;
       const logs = st.log.slice(0, 5).map((l) => `<li>${esc2(l.msg)}</li>`).join('') || '<li class="muted">لا نشاط بعد</li>';
-      body += `<div class="row"><button id="odRun">تشغيل الآن</button><button class="ghost" id="odPosts">المنشورات${pend ? ' (' + pend + ')' : ''}</button></div>` +
-        `<h4>خبير التسويق</h4><div id="odMk"><p class="muted">جارِ قراءة إحصائيات ميتا…</p></div>` +
+      body += `<div class="row"><button id="odRun">تشغيل الآن</button><button class="ghost" id="odPosts">المنشورات${pend ? ' (' + pend + ')' : ''}</button></div><h4>آخر النشاط</h4><ul>${logs}</ul>`;
+    } else if (a.name === 'التسويق') {
+      body += `<div id="odMk"><p class="muted">جارِ قراءة إحصائيات ميتا…</p></div>` +
         `<div class="row"><button class="ghost" data-ask="اكتب تقرير السوشال ميديا الأسبوعي: الأرقام وأفضل المنشورات وأفضل وقت للنشر مع 3 توصيات">تقرير أسبوعي</button><button class="ghost" data-ask="اقترح خطة محتوى لأسبوعين مناسبة لنشاطنا بناءً على أداء منشوراتنا">خطة محتوى</button><button class="ghost" data-ask="حلّل الحملات الإعلانية والإنفاق آخر 30 يوماً واقترح حملة جديدة بميزانية وجمهور">الإعلانات</button></div>` +
-        `<h4>آخر النشاط</h4><ul>${logs}</ul>`;
+        '<p class="muted">قراءة وتحليل واقتراحات فقط. لا يُنشر ولا يُصرف شيء إلا بموافقتك.</p>';
     } else if (a.name === 'العقود') {
       const soon = ct ? ct.items.filter((c) => c.days >= 0 && c.days <= 90) : [];
       body += `<div class="row"><button id="odCt">فتح العقود</button></div><h4>تنتهي خلال 90 يوماً</h4><ul>${soon.map((c) => `<li>${esc2(c.client)}<br><span class="muted">باقي ${c.days} يوم · ${esc2(c.end)}</span></li>`).join('') || '<li class="muted">لا شيء</li>'}</ul>`;
@@ -252,6 +253,7 @@ const Office = (() => {
       accountingAgent(state, last.odoo),
       visitsAgent(state, last.visits),
       { name: 'خدمة العملاء', role: 'سيعرض حالة محادثات واتساب (للعرض فقط).', working: false, alert: '', text: 'قريباً' },
+      { name: 'التسويق', role: 'خبير السوشال ميديا والحملات: يحلّل أداء فيسبوك وانستقرام والإعلانات، ويكتب التقارير وخطط المحتوى، ويقترح الحملات بموافقتك.', working: !!pubPage, alert: '', text: pubPage ? 'جاهز للتحليل والخطط' : 'اربط ميتا من الحسابات' },
     ].map((a) => ({ ...a, color: COL[a.name], text: said[a.name] ? said[a.name] : a.text }));
   }
 
