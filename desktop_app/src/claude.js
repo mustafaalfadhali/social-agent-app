@@ -62,7 +62,12 @@ function run(exe, args, { input = '', cwd, timeoutMs = 5 * 60 * 1000 } = {}) {
     child.on('error', (e) => { clearTimeout(timer); reject(e); });
     child.on('close', (code) => {
       clearTimeout(timer);
-      if (code !== 0) return reject(new Error(err.trim() || out.trim() || `claude exited ${code}`));
+      if (code !== 0) {
+        // Claude يطبع الخطأ كـ JSON على stdout: نعرض نص الخطأ فقط لا الغلاف كله
+        let msg = err.trim() || out.trim() || `claude exited ${code}`;
+        try { const j = JSON.parse(out.slice(out.indexOf('{'), out.lastIndexOf('}') + 1)); if (j && j.result) msg = String(j.result); } catch { /* نص عادي */ }
+        return reject(new Error(msg.slice(0, 400)));
+      }
       resolve(out);
     });
     if (input) child.stdin.write(input);

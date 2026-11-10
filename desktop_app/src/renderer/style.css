@@ -131,3 +131,5 @@ input:not([type=checkbox]):focus, textarea:focus, select:focus { outline: none; 
 ::-webkit-scrollbar-thumb:hover { background: #3a4a72; background-clip: padding-box; border: 2px solid transparent; }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 nav button, nav button:hover:not(:disabled) { box-shadow: none; filter: none; }
+.card p, #claudeCheck, .msg, .prop { overflow-wrap: anywhere; word-break: break-word; }
+.card { min-width: 0; }
