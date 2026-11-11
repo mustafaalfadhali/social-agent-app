@@ -90,7 +90,18 @@ function create({ store, dataDir, commander, payments, whatsapp, log, api: apiOv
   }
 
   // ---------- بطاقة الدفعة (نص + أزرار) ----------
+  function invoiceCard(p, confirming) {
+    const lines = [`🧾 فاتورة لـ ${p.partner}`].concat(p.lines.map((l) => `• ${l.name}: ${l.qty} × ${money(l.price)} = ${money(l.qty * l.price)}`),
+      [`قبل الضريبة ${money(p.untaxed)} + ضريبة 15% ${money(p.vat)} = ${money(p.total)} ريال`], (p.warnings || []).map((w) => '⚠ ' + w));
+    if (p.status === 'done') return { text: lines.concat(`✅ أُنشئت ورُحّلت: ${p.result.name} (${money(p.result.total)} ريال)`).join('\n') };
+    if (p.status === 'rejected') return { text: lines.concat('تم الرفض، ولم يُنشأ شيء.').join('\n') };
+    if (p.error) lines.push('⚠ ' + p.error);
+    if (confirming) return { text: `تأكيد أخير: إنشاء وترحيل فاتورة ${money(p.total)} ريال لـ ${p.partner} من «شعلة الخدمات» في أودو؟\nهذا يغيّر سجلك المحاسبي.`,
+      keyboard: { inline_keyboard: [[{ text: '✅ نعم، أنشئ', callback_data: `yes:${p.id}` }, { text: 'رجوع', callback_data: `back:${p.id}` }]] } };
+    return { text: lines.join('\n'), keyboard: { inline_keyboard: [[{ text: '✅ موافقة', callback_data: `ok:${p.id}` }, { text: '❌ رفض', callback_data: `no:${p.id}` }]] } };
+  }
   function card(p, confirming) {
+    if (p.type === 'invoice') return invoiceCard(p, confirming);
     const e = p.extract || {};
     const lines = [`💰 حوالة ${money(p.amount)} ${e.currency || 'SAR'} · ${p.date}${p.dateAssumed ? ' (تاريخ اليوم)' : ''}`];
     if (e.payer || e.bank || e.reference) lines.push([e.payer && 'من: ' + e.payer, e.bank, e.reference && 'مرجع: ' + e.reference].filter(Boolean).join(' · '));
@@ -112,7 +123,7 @@ function create({ store, dataDir, commander, payments, whatsapp, log, api: apiOv
     act.push({ text: '❌ رفض', callback_data: `no:${p.id}` });
     return { text: lines.join('\n'), keyboard: { inline_keyboard: rows.concat([act]) } };
   }
-  const findProposal = (id) => (store.get().proposals || []).find((x) => x.id === id && x.type === 'payment');
+  const findProposal = (id) => (store.get().proposals || []).find((x) => x.id === id && (x.type === 'payment' || x.type === 'invoice'));
 
   // ---------- معالجة الرسائل ----------
   function limited() {
@@ -160,13 +171,18 @@ function create({ store, dataDir, commander, payments, whatsapp, log, api: apiOv
       }
     }
     history.push({ role: 'user', text }); if (history.length > 8) history.shift();
-    const r = await commander.ask({ text, history: history.slice(0, -1) }, store.get());
+    const r = await commander.ask({ text, history: history.slice(0, -1) }, store.get(), store);
     history.push({ role: 'office', text: r.reply }); if (history.length > 8) history.shift();
     if (r.action) { // طلب مستند: نرسل الملف بوصف مكتوب من بياناته الفعلية (لا من نص النموذج)
       try {
         const f = await documents.fulfill(r.action, store.get(), path.join(dataDir, 'tmp'));
         await sendDocument(m.chat.id, f.pdf, f.name, f.summary || f.title);
       } catch (e) { await send(m.chat.id, '⚠ ' + redact(e.message).slice(0, 600)); }
+      return;
+    }
+    if (r.proposals && r.proposals.length) { // بطاقات موافقة لكل مقترح محاسبي
+      await send(m.chat.id, `«المحاسبة»\n${r.reply}`);
+      for (const id of r.proposals) { const p = findProposal(id); if (p) { const cd = card(p); await send(m.chat.id, cd.text, cd.keyboard); } }
       return;
     }
     await send(m.chat.id, `${r.agent === 'عام' ? '' : '«' + r.agent + '»\n'}${r.reply}${r.proposal ? '\n\n📝 مقترح (لم يُنفَّذ): ' + (r.proposal.summary || '') : ''}`);
@@ -188,7 +204,7 @@ function create({ store, dataDir, commander, payments, whatsapp, log, api: apiOv
         const p0 = findProposal(id);
         if (!p0 || !p0.tgConfirmAt || Date.now() - p0.tgConfirmAt > 10 * 60 * 1000) throw new Error('اضغط «موافقة» أولاً ثم أكّد');
         delete p0.tgConfirmAt;
-        const r = await payments.approve(store, id, dataDir); note = `سُجّلت الدفعة على ${r.name}`;
+        const r = await payments.approve(store, id, dataDir); note = p0.type === 'invoice' ? `أُنشئت الفاتورة ${r.name}` : `سُجّلت الدفعة على ${r.name}`;
       }
     } catch (e) { note = e.message; }
     const p = findProposal(id);

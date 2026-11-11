@@ -228,7 +228,7 @@ const Office = (() => {
   }
 
   // ---------- البيانات ----------
-  const pendingPay = (state) => (state.proposals || []).filter((p) => p.type === 'payment' && p.status === 'pending').length;
+  const pendingPay = (state) => (state.proposals || []).filter((p) => (p.type === 'payment' || p.type === 'invoice') && p.status === 'pending').length;
 
   function accountingAgent(state, o) {
     const base = { name: 'المحاسبة', role: 'يعرض فواتير أودو ومستحقاتك (شعلة الخدمات). الإصدار وتسجيل الدفعات لاحقاً بموافقتك.' };

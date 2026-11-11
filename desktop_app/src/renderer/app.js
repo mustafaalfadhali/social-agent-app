@@ -320,6 +320,14 @@ const money2 = (n) => new Intl.NumberFormat('en-US', { minimumFractionDigits: 0,
 function payCard(ref) {
   const p = (state?.proposals || []).find((x) => x.id === ref.id);
   if (!p) return `<div class="prop">${esc(ref.summary || '')}</div>`;
+  if (p.type === 'invoice') {
+    const h = `<div class="pay-h">🧾 فاتورة لـ ${esc(p.partner)}</div>` + p.lines.map((l) => `<div class="muted">• ${esc(l.name)}: ${money2(l.qty)} × ${money2(l.price)} = ${money2(l.qty * l.price)}</div>`).join('') +
+      `<div class="muted">قبل الضريبة ${money2(p.untaxed)} + ضريبة 15% ${money2(p.vat)} = <b>${money2(p.total)} ر.س</b></div>` + (p.warnings || []).map((w) => `<div class="pay-w">⚠ ${esc(w)}</div>`).join('');
+    if (p.status === 'done') return `<div class="pay done">${h}<div class="pay-ok">✅ أُنشئت ورُحّلت: ${esc(p.result.name)}</div></div>`;
+    if (p.status === 'rejected') return `<div class="pay">${h}<div class="muted">تم الرفض، ولم يُنشأ شيء.</div></div>`;
+    return `<div class="pay">${h}${p.error ? `<div class="pay-w">⚠ ${esc(p.error)}</div>` : ''}<div class="row"><button type="button" data-act="ok" data-id="${esc(p.id)}">موافقة وإنشاء الفاتورة</button>
+      <button type="button" class="ghost" data-act="no" data-id="${esc(p.id)}">رفض</button></div></div>`;
+  }
   const e = p.extract || {};
   const head = `<div class="pay-h">💰 حوالة ${money2(p.amount)} ${esc(e.currency || 'SAR')} · ${esc(p.date)}${p.dateAssumed ? ' (تاريخ اليوم)' : ''}</div>` +
     `<div class="muted">${e.payer ? 'من: ' + esc(e.payer) + ' · ' : ''}${e.bank ? esc(e.bank) + ' · ' : ''}${e.reference ? 'مرجع: ' + esc(e.reference) : ''}</div>` +
@@ -345,6 +353,11 @@ $('chatLog').addEventListener('click', async (e) => {
     if (act === 'sel') await call('proposal:select', id, Number(inv));
     if (act === 'no') await call('proposal:reject', id);
     if (act === 'ok') {
+      if (p && p.type === 'invoice') {
+        if (!confirm(`إنشاء وترحيل فاتورة ${money2(p.total)} ر.س لـ ${p.partner} في أودو؟\nهذا يغيّر سجلك المحاسبي.`)) { b.disabled = false; return; }
+        const r = await call('proposal:approve', id); toast(`✅ أُنشئت الفاتورة ${r.name}`);
+        await refresh(); renderChat(); return;
+      }
       const c = p && p.candidates.find((x) => x.id === p.selected);
       if (!c || !confirm(`تسجيل دفعة ${money2(p.amount)} على الفاتورة ${c.name} (${c.partner}) بتاريخ ${p.date} في أودو؟\nهذا يغيّر سجلك المحاسبي.`)) { b.disabled = false; return; }
       const r = await call('proposal:approve', id);
@@ -356,8 +369,8 @@ $('chatLog').addEventListener('click', async (e) => {
 
 // ---- شريط الأوامر ----
 const chat = [];
-function addChat(role, text, agent, proposal, doc) {
-  chat.push({ role, text, agent, proposal, doc });
+function addChat(role, text, agent, proposal, doc, proposals) {
+  chat.push({ role, text, agent, proposal, doc, proposals });
   renderChat();
 }
 function renderChat() {
@@ -365,7 +378,7 @@ function renderChat() {
   el.style.display = chat.length ? 'block' : 'none';
   el.innerHTML = chat.slice(-12).map((m) => m.role === 'user'
     ? `<div class="msg me">${esc(m.text)}</div>`
-    : `<div class="msg off"><b class="who">${esc(m.agent || 'المكتب')}</b>${esc(m.text).replace(/\n/g, '<br>')}${m.doc ? `<div class="row"><button type="button" class="ghost" data-doc="${esc(m.doc.id)}">📄 فتح: ${esc(m.doc.title)}</button></div>` : ''}${m.proposal ? (m.proposal.type === 'payment' ? payCard(m.proposal) : `<div class="prop">📝 مقترح (لم يُنفَّذ): ${esc(m.proposal.summary || '')}</div>`) : ''}</div>`).join('');
+    : `<div class="msg off"><b class="who">${esc(m.agent || 'المكتب')}</b>${esc(m.text).replace(/\n/g, '<br>')}${m.doc ? `<div class="row"><button type="button" class="ghost" data-doc="${esc(m.doc.id)}">📄 فتح: ${esc(m.doc.title)}</button></div>` : ''}${(m.proposals || []).map((id) => payCard({ id })).join('')}${m.proposal ? (m.proposal.type === 'payment' ? payCard(m.proposal) : `<div class="prop">📝 مقترح (لم يُنفَّذ): ${esc(m.proposal.summary || '')}</div>`) : ''}</div>`).join('');
   el.scrollTop = el.scrollHeight;
 }
 $('cmdBar').onsubmit = async (e) => {
@@ -379,7 +392,7 @@ $('cmdBar').onsubmit = async (e) => {
   try {
     const r = await window.api.call('assistant:ask', { text, attachments: att ? [att.id] : [], history: chat.filter((m) => m.text !== 'أفكر…').slice(-8, -1).map((m) => ({ role: m.role === 'user' ? 'user' : 'office', text: m.text })) });
     chat.pop();
-    if (r.ok) { addChat('ag', r.data.reply, r.data.agent, r.data.proposal, r.data.doc); Office.say(r.data.agent, r.data.reply.split('\n')[0].slice(0, 40)); }
+    if (r.ok) { if (r.data.proposals && r.data.proposals.length) await refresh(); addChat('ag', r.data.reply, r.data.agent, r.data.proposal, r.data.doc, r.data.proposals); Office.say(r.data.agent, r.data.reply.split('\n')[0].slice(0, 40)); }
     else addChat('off', '⚠ تعذّر الرد من Claude Code: ' + r.error + (/OAuth|authenticate|login/i.test(r.error) ? '\nسجّل الدخول (/login في نافذة Claude) ثم اضغط «فحص الدخول» في الرئيسية.' : ''), 'المكتب');
   } finally { btn.disabled = false; $('cmdInput').disabled = false; $('cmdInput').focus(); }
 };

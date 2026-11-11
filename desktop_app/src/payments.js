@@ -118,9 +118,57 @@ async function propose({ file, name }, d, store) {
   return { reply, proposal: { id: proposal.id, type: 'payment', summary: reply } };
 }
 
+// ---------- مقترحات من أمر نصي (فاتورة / دفعة) ----------
+const num = (v) => { if (/^s*-/.test(String(v))) return 0; const n = Number(String(v).replace(/[^\d.]/g, '')); return Number.isFinite(n) ? n : 0; };
+
+async function proposeText(acc, d, store) {
+  if (!d.odoo.apiKey) return { reply: 'اربط أودو أولاً من تبويب الحسابات.', ids: [] };
+  if (acc && acc.type === 'create_invoice') {
+    const lines = (Array.isArray(acc.lines) ? acc.lines : []).slice(0, 20).map((l) => ({ name: String(l.name || '').trim().slice(0, 300), qty: num(l.qty), price: num(l.price) }));
+    if (!lines.length || lines.some((l) => !l.name || !(l.qty > 0) || !(l.price > 0))) return { reply: 'ينقصني بند أو كمية أو سعر واضح لإصدار الفاتورة. اذكرها (الوصف، الكمية، سعر الوحدة).', ids: [] };
+    const partners = await odoo.findPartnersLoose(d.odoo, acc.customer);
+    if (!partners.length) return { reply: `لم أجد عميلاً باسم «${acc.customer}» في أودو. لن أنشئ عميلاً جديداً؛ اكتب الاسم كما في أودو.`, ids: [] };
+    if (partners.length > 1) return { reply: 'وجدت أكثر من عميل مطابق، حدّد الاسم بدقة:\n' + partners.map((p) => '• ' + p.name).join('\n'), ids: [] };
+    const untaxed = Math.round(lines.reduce((s, l) => s + l.qty * l.price, 0) * 100) / 100, vat = Math.round(untaxed * 15) / 100;
+    const warnings = [];
+    if (list(store).some((p) => p.type === 'invoice' && p.status !== 'rejected' && p.partnerId === partners[0].id && p.untaxed === untaxed && Date.now() - Date.parse(p.createdAt) < 86400000)) warnings.push('يوجد مقترح فاتورة مماثل لنفس العميل خلال 24 ساعة، تأكد أنها ليست مكررة');
+    const p = { id: crypto.randomUUID(), type: 'invoice', status: 'pending', createdAt: new Date().toISOString(), partnerId: partners[0].id, partner: partners[0].name,
+      lines, untaxed, vat, total: Math.round((untaxed + vat) * 100) / 100, date: todayISO(), warnings };
+    list(store).unshift(p); d.proposals = list(store).slice(0, 50); store.save();
+    return { reply: `جهّزت فاتورة لـ ${p.partner}: ${untaxed} + ضريبة ${vat} = ${p.total} ريال. لم تُصدر بعد، وافق لتُنشأ وتُرحَّل في أودو.`, ids: [p.id] };
+  }
+  if (acc && acc.type === 'register_payment') {
+    const wanted = (Array.isArray(acc.invoices) ? acc.invoices : []).map((x) => String(x).trim()).filter(Boolean).slice(0, 10);
+    if (!wanted.length) return { reply: 'حدّد رقم الفاتورة (أو أرقام الفواتير) المراد تسجيل الدفعة عليها.', ids: [] };
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(acc.date || '') && acc.date <= todayISO() ? acc.date : todayISO();
+    const invs = await odoo.openInvoices(d.odoo);
+    const found = [], missing = [];
+    for (const w of wanted) {
+      const m = invs.filter((i) => i.name === w || (/^\d{2,6}$/.test(w) && i.name.endsWith('/' + w.padStart(5, '0'))));
+      if (m.length === 1) found.push(m[0]); else missing.push(w);
+    }
+    if (missing.length) return { reply: `لم أجد فاتورة مفتوحة برقم: ${missing.join('، ')}. لم أجهّز شيئاً.`, ids: [] };
+    const type = acc.method === 'bank' ? 'bank' : 'cash';
+    const journal = await odoo.bankJournal(d.odoo, type);
+    const custom = found.length === 1 && num(acc.amount) > 0 ? num(acc.amount) : null;
+    const ids = [];
+    for (const inv of found) {
+      const amount = custom || inv.residual;
+      const p = { id: crypto.randomUUID(), type: 'payment', status: 'pending', createdAt: new Date().toISOString(), file: 'أمر نصي',
+        extract: { currency: 'SAR', payer: inv.partner, bank: type === 'cash' ? 'نقداً' : '', reference: 'بأمر المالك' }, amount, date, dateAssumed: date === todayISO() && !acc.date, journal,
+        candidates: [{ id: inv.id, name: inv.name, partner: inv.partner, residual: inv.residual, date: inv.date, exact: Math.abs(inv.residual - amount) < 0.01, partial: amount < inv.residual - 0.005, nameScore: 1, score: 9 }],
+        selected: inv.id, warnings: amount > inv.residual + 0.005 ? ['المبلغ أكبر من المتبقي، سيُرفض عند الموافقة'] : [] };
+      list(store).unshift(p); ids.push(p.id);
+    }
+    d.proposals = list(store).slice(0, 50); store.save();
+    return { reply: `جهّزت ${ids.length} دفعة (${type === 'cash' ? 'نقدية' : 'بنكية'}) بمجموع ${Math.round(found.reduce((s, i) => s + (custom || i.residual), 0) * 100) / 100} ريال. لم تُسجَّل بعد، وافق على كل بطاقة.`, ids };
+  }
+  return { reply: '', ids: [] };
+}
+
 function find(store, id) {
   const p = list(store).find((x) => x.id === id);
-  if (!p || p.type !== 'payment') throw new Error('المقترح غير موجود');
+  if (!p || !['payment', 'invoice'].includes(p.type)) throw new Error('المقترح غير موجود');
   return p;
 }
 
@@ -140,6 +188,17 @@ function reject(store, id) {
 async function approve(store, id, userData) {
   const d = store.get(), p = find(store, id);
   if (p.status !== 'pending') throw new Error('تم التعامل مع هذا المقترح');
+  if (p.type === 'invoice') {
+    p.status = 'executing'; store.save();
+    try {
+      const res = await odoo.createInvoice(d.odoo, { partnerId: p.partnerId, lines: p.lines, date: todayISO() });
+      p.status = 'done'; p.doneAt = new Date().toISOString(); p.result = res; p.error = '';
+      store.save();
+      try { fs.appendFileSync(path.join(userData, 'audit.jsonl'), JSON.stringify({ t: p.doneAt, action: 'create_invoice', proposal: p.id, invoice: res.name, partner: p.partner, total: res.total }) + '\n', { mode: 0o600 }); } catch { /* السجل اختياري */ }
+      store.log(`🧾 فاتورة ${res.name} لـ ${p.partner} بمبلغ ${res.total}`);
+      return res;
+    } catch (e) { p.status = 'pending'; p.error = e.message; store.save(); throw e; }
+  }
   if (!p.selected) throw new Error('اختر الفاتورة أولاً');
   p.status = 'executing'; store.save();
   try {
@@ -161,4 +220,4 @@ async function approve(store, id, userData) {
   }
 }
 
-module.exports = { saveInbox, resolveInbox, cleanup, propose, select, reject, approve, _cleanExtract: cleanExtract, _nameScore: nameScore };
+module.exports = { saveInbox, resolveInbox, cleanup, propose, proposeText, select, reject, approve, _cleanExtract: cleanExtract, _nameScore: nameScore };

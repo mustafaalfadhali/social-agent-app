@@ -68,7 +68,7 @@ async function buildContext(d, text = '', history = []) {
   };
 }
 
-async function ask({ text, history = [] }, d) {
+async function ask({ text, history = [] }, d, store) {
   const ctx = await buildContext(d, text, history);
   const prompt = [
     'أنت «مكتب سِراج»: فريق من ستة وكلاء لمؤسسة مكافحة حشرات في الرياض (النشر، العقود، المحاسبة، الزيارات، خدمة العملاء، التسويق).',
@@ -78,7 +78,10 @@ async function ask({ text, history = [] }, d) {
     '- لا تخترع أي رقم أو اسم غير موجود. إن لم تكفِ البيانات فقل ذلك صراحة.',
     '- فواتير الشركة تصدر من «شعلة الخدمات» فقط. والعقود قد تكون باسم الخدمات أو الجزيرة.',
     '- التاريخ الماضي في العقود يعني «تم التجديد» وليس «منتهياً».',
-    '- أنت لا تنفّذ أي تغيير. إذا طلب المالك ما يغيّر شيئاً (إصدار فاتورة، تسجيل دفعة، نشر منشور، تعديل عقد) فأعد proposal يلخّص ما سيُنفَّذ، وقل في الرد إنه مقترح ينتظر تفعيل الموافقات.',
+    '- أنت لا تنفّذ أي تغيير بنفسك. للنشر أو تعديل العقود أعد proposal يلخّص ما سيُنفَّذ وقل إنه مقترح.',
+    '- إصدار فاتورة: أعد accounting = {"type":"create_invoice","customer":"اسم العميل كما ذكره المالك","lines":[{"name":"وصف البند (مع الفرع إن ذُكر)","qty":عدد,"price":سعر الوحدة قبل الضريبة}]}. الضريبة 15% يضيفها النظام. الفواتير من «شعلة الخدمات».',
+    '- تسجيل دفعة نقدية أو بنكية على فاتورة/فواتير: أعد accounting = {"type":"register_payment","invoices":["رقم كما ذكره المالك أو INV/2026/00074"],"method":"cash"|"bank","amount":رقم اختياري لفاتورة واحدة,"date":"YYYY-MM-DD" اختياري}. «نقدي/كاش» = cash. إن لم يذكر المالك الفاتورة بوضوح فاسأله ولا ترسل accounting.',
+    '- عند accounting اكتب في reply جملة واحدة فقط («جارِ تجهيز بطاقة الموافقة»)؛ النظام هو من ينشئ البطاقة ويعرض التفاصيل. لا تقل إنه نُفِّذ ولا إنه ينتظر تفعيل الموافقات. proposal = null.',
     '- بيانات الزيارات في visits (إن كان connected=true): الأرقام شهرية وتُصفَّر آخر الشهر. «تمت X من Y زيارة» = visits_done من visits_required. جدول الزيارات المجدولة قد يكون قديماً (انظر latest_schedule_date)، فلا تتحدث عن زيارات اليوم إن كانت القائمة فارغة إلا بقولك إنه لا يوجد جدول لها. إن كان connected=false فقل إن وكيل الزيارات غير مربوط.',
     '- وكيل «خدمة العملاء» يقرأ رسائل واتساب عبر customer_service (إن كان connected=true): waiting_for_reply عدد المحادثات التي تنتظر رداً، وconversations ملخصها. الردود تُكتب كمسودات وتُرسل بموافقة المالك من بطاقة تيليجرام أو من المكتب، ولا تقل إنك أرسلت شيئاً. إن كان connected=false فقل إنه غير مربوط بعد.',
     '- وكيل «التسويق» هو خبير السوشال ميديا والحملات (منفصل عن «النشر» الذي يكتب وينشر المنشورات فقط). اجعل agent = «التسويق» لأي طلب عن الأداء أو التقارير أو خطة المحتوى أو الحملات والإعلانات أو المتابعين. إن وُجد marketing في البيانات فهو قراءة حقيقية من ميتا: facebook وinstagram (المتابعون، أفضل المنشورات top، أفضل يوم وساعة timing، عدد المنشورات آخر 30 يوماً) وads (الحملات والإنفاق آخر 30 يوماً). score = تفاعل مرجّح (إعجاب=1، تعليق=2، مشاركة=3).',
@@ -94,13 +97,21 @@ async function ask({ text, history = [] }, d) {
     history.length ? 'المحادثة السابقة:\n' + history.slice(-6).map((m) => `${m.role === 'user' ? 'المالك' : 'المكتب'}: ${m.text}`).join('\n') : '',
     `طلب المالك الآن: ${text}`,
     '',
-    `أعد فقط JSON بدون أي نص آخر: {"agent": "واحد من ${AGENTS.join(' | ')}", "reply": "...", "proposal": null أو {"type": "payment|invoice|post|contract|campaign", "summary": "..."}, "action": null أو {"type": "invoice_pdf|statement_pdf", ...}}`,
+    `أعد فقط JSON بدون أي نص آخر: {"agent": "واحد من ${AGENTS.join(' | ')}", "reply": "...", "proposal": null أو {"type": "post|contract|campaign", "summary": "..."}, "action": null أو {"type": "invoice_pdf|statement_pdf", ...}, "accounting": null أو {...}}`,
   ].filter((x) => x !== '').join('\n');
   const raw = await claude.askText(prompt, d.settings);
   const j = claude.extractJson(raw);
   let action = null;
   try { action = j.action ? require('./documents').validate(j.action) : null; } catch { action = null; }
-  return { agent: AGENTS.includes(j.agent) ? j.agent : 'عام', reply: String(j.reply || '').trim() || 'لم أفهم الطلب.', proposal: j.proposal || null, action };
+  const out = { agent: AGENTS.includes(j.agent) ? j.agent : 'عام', reply: String(j.reply || '').trim() || 'لم أفهم الطلب.', proposal: j.proposal || null, action, proposals: [] };
+  if (j.accounting && store) { // مقترح محاسبي: يُنشأ في النظام ويُنفَّذ بزر موافقة فقط
+    try {
+      const r = await require('./payments').proposeText(j.accounting, d, store);
+      if (r.reply) out.reply = r.reply;
+      out.agent = 'المحاسبة'; out.proposals = r.ids; out.proposal = null;
+    } catch (e) { out.reply = 'تعذّر تجهيز المقترح: ' + e.message; }
+  }
+  return out;
 }
 
 module.exports = { ask };

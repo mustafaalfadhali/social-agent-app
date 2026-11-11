@@ -1,7 +1,8 @@
 // اتصال أودو (JSON-RPC) — المرحلة 1: قراءة فقط. أي دالة غير مسموحة تُرفض قبل الإرسال.
 const READ_ONLY = new Set(['search_read', 'read_group', 'search_count', 'read', 'fields_get']);
 // الكتابة الوحيدة المسموحة في البرنامج كله: معالج تسجيل الدفعات (إنشاء المعالج ثم تنفيذه).
-const WRITE_ALLOWED = { 'account.payment.register': new Set(['create', 'action_create_payments']) };
+// + إنشاء فاتورة مبيعات وترحيلها (بعد موافقة المالك فقط).
+const WRITE_ALLOWED = { 'account.payment.register': new Set(['create', 'action_create_payments']), 'account.move': new Set(['create', 'action_post']) };
 
 // يقبل https فقط (و http للجهاز المحلي)، بدون بيانات دخول داخل الرابط، ويُرجع الأصل (origin) فقط.
 function checkUrl(raw) {
@@ -88,11 +89,49 @@ async function openInvoices(cfg) {
     date: i.invoice_date, total: r2(i.amount_total), residual: r2(i.amount_residual) }));
 }
 
-async function bankJournal(cfg) {
+async function bankJournal(cfg, type = 'bank') {
+  if (!['bank', 'cash'].includes(type)) throw new Error('نوع دفتر غير صالح');
   const c = client(cfg);
-  const j = await c.call('account.journal', 'search_read', [[['type', '=', 'bank']]], { fields: ['name'], order: 'id asc', limit: 1 });
-  if (!j.length) throw new Error('لا يوجد دفتر بنك في أودو');
+  const j = await c.call('account.journal', 'search_read', [[['type', '=', type]]], { fields: ['name'], order: 'id asc', limit: 1 });
+  if (!j.length) throw new Error(type === 'cash' ? 'لا يوجد دفتر نقدي في أودو' : 'لا يوجد دفتر بنك في أودو');
   return { id: j[0].id, name: j[0].name };
+}
+
+// ---------- كتابة: إنشاء فاتورة مبيعات وترحيلها (بعد موافقة المالك فقط) ----------
+async function createInvoice(cfg, { partnerId, lines, date }) {
+  if (!Number.isInteger(partnerId)) throw new Error('عميل غير صالح');
+  if (!Array.isArray(lines) || !lines.length || lines.length > 20) throw new Error('بنود الفاتورة غير صالحة');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('تاريخ غير صالح');
+  let total = 0;
+  for (const l of lines) {
+    if (!(l.qty > 0) || !(l.price > 0) || l.qty > 100000 || l.price > 1000000 || !String(l.name || '').trim()) throw new Error('بند غير صالح');
+    total += l.qty * l.price;
+  }
+  if (total > 1000000) throw new Error('إجمالي الفاتورة كبير جداً، أنشئها من أودو مباشرة');
+  const c = client(cfg);
+  const taxes = await c.call('account.tax', 'search_read', [[['type_tax_use', '=', 'sale'], ['amount_type', '=', 'percent'], ['amount', '=', 15]]], { fields: ['name'], order: 'id asc', limit: 1 });
+  if (!taxes.length) throw new Error('لم أجد ضريبة مبيعات 15% في أودو');
+  const vals = { move_type: 'out_invoice', partner_id: partnerId, invoice_date: date,
+    invoice_line_ids: lines.map((l) => [0, 0, { name: String(l.name).slice(0, 300), quantity: l.qty, price_unit: l.price, tax_ids: [[6, 0, [taxes[0].id]]] }]) };
+  const id = await c.callWrite('account.move', 'create', [vals]);
+  if (!Number.isInteger(id)) throw new Error('تعذّر إنشاء الفاتورة');
+  await c.callWrite('account.move', 'action_post', [[id]]);
+  const after = await c.call('account.move', 'read', [[id]], { fields: ['name', 'state', 'amount_untaxed', 'amount_total'] });
+  return { id, name: after[0].name, state: after[0].state, untaxed: r2(after[0].amount_untaxed), total: r2(after[0].amount_total) };
+}
+
+// بحث عميل متساهل: الاسم كاملاً ثم كل كلماته (حتى 3)
+async function findPartnersLoose(cfg, name) {
+  const c = client(cfg);
+  const clean = String(name || '').replace(/[%_]/g, ' ').trim().slice(0, 80);
+  if (!clean) return [];
+  const q = async (domain) => (await c.call('res.partner', 'search_read', [[...domain, ['customer_rank', '>', 0]]], { fields: ['name'], limit: 6 })).map((p) => ({ id: p.id, name: p.name }));
+  let rows = await q([['name', 'ilike', clean]]);
+  if (!rows.length) {
+    const words = clean.split(/\s+/).filter((w) => w.length >= 3 && !['شركة', 'مصنع', 'مؤسسة', 'فرع'].includes(w)).slice(0, 3);
+    if (words.length) rows = await q(words.map((w) => ['name', 'ilike', w]));
+  }
+  return rows;
 }
 
 async function invoiceInfo(cfg, id) {
@@ -167,4 +206,4 @@ async function statementData(cfg, partnerId) {
   return { partner, lines, company, journals };
 }
 
-module.exports = { test, summary, checkUrl, openInvoices, bankJournal, invoiceInfo, registerPayment, findPartners, lastInvoiceName, invoiceDoc, statementData };
+module.exports = { test, summary, checkUrl, openInvoices, bankJournal, createInvoice, findPartnersLoose, invoiceInfo, registerPayment, findPartners, lastInvoiceName, invoiceDoc, statementData };
