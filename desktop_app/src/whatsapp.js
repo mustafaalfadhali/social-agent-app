@@ -19,6 +19,7 @@ const DEFAULT_PROFILE = {
   hours: 'كل زيارة ساعة كاملة. تبدأ الحجوزات من 10 صباحاً حتى 9 مساءً، ولا يُحجز وقت متداخل.',
   escalate: 'شكوى، استرجاع، فاتورة، مدير',
   followDays: '2',
+  followFirstHours: '20',
   autoReply: 'on',
 };
 
@@ -179,6 +180,7 @@ function create({ store, claude, log = () => {}, fetchImpl, sleepImpl }) {
   // ---------- متابعة العملاء المترددين: كل يومين حتى 3 محاولات، بموافقتك ----------
   async function checkFollowUps(now = Date.now()) {
     const days = Math.max(1, Math.min(14, Number(prof().followDays) || 2)), span = days * 86400000;
+    const firstMs = Math.max(2, Math.min(22, Number(prof().followFirstHours) || 20)) * 3600000;
     const hour = new Date(now).getHours(); if (hour < 9 || hour >= 21) return 0; // لا نزعج في الليل
     let made = 0;
     for (const cv of Object.values(convs())) {
@@ -187,7 +189,9 @@ function create({ store, claude, log = () => {}, fetchImpl, sleepImpl }) {
       if ((cv.followCount || 0) >= 3) { if (!cv.followDone) { cv.followDone = true; store.save(); } continue; }
       const lastOut = [...cv.messages].reverse().find((m) => m.dir === 'out');
       const lastAct = Math.max(cv.lastInboundAt || 0, lastOut ? lastOut.ts : 0, cv.lastFollowAt || 0);
-      if (!lastAct || now - lastAct < span) continue;
+      const inWindow = now - (cv.lastInboundAt || 0) < WINDOW_MS - 1800000;
+      const need = (cv.followCount || 0) === 0 && inWindow ? firstMs : span; // أول متابعة داخل نافذة 24 ساعة (مجانية)، والبقية كل span
+      if (!lastAct || now - lastAct < need) continue;
       try {
         await makeDraft(cv.phone, { followUp: (cv.followCount || 0) + 1, days });
         cv.followCount = (cv.followCount || 0) + 1; cv.lastFollowAt = now; cv.draft.followUp = true; store.save();
