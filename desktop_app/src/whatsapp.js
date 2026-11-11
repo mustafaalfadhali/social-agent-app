@@ -98,7 +98,7 @@ function create({ store, claude, log = () => {}, fetchImpl, sleepImpl }) {
       '- deal_status: open إن كان العميل مهتماً لكنه لم يحسم (متردد أو سيفكر أو ينتظر أو لم يكتمل الحجز)، closed إن اتفق على الحجز، lost إن رفض صراحة أو طلب التوقف، none إن كانت مجرد تحية أو استفسار عام.',
       ...bookingContext(cv, extra),
       '<<<', thread, '>>>',
-      'أعد فقط JSON بدون أي نص آخر: {"category":"inquiry|service_request|complaint|quote|other","urgent":true|false,"summary":"سطر واحد يلخّص طلب العميل","needs_human":true|false,"draft":"نص الرد","booking_ready":true|false,"booking":null أو {"name":"اسم العميل","location":"الموقع","service":"الخدمة","price":"السعر المتفق عليه","preferred":"وقت يفضله العميل إن ذكر"},"slot_decision":"confirmed|rejected|unclear|none","deal_status":"open|closed|lost|none"}',
+      'أعد فقط JSON بدون أي نص آخر: {"category":"inquiry|service_request|complaint|quote|other","urgent":true|false,"summary":"سطر واحد يلخّص طلب العميل","needs_human":true|false,"human_reason":"سبب التحويل في أقل من 8 كلمات إن كان needs_human=true","draft":"نص الرد","booking_ready":true|false,"booking":null أو {"name":"اسم العميل","location":"الموقع","service":"الخدمة","price":"السعر المتفق عليه","preferred":"وقت يفضله العميل إن ذكر"},"slot_decision":"confirmed|rejected|unclear|none","deal_status":"open|closed|lost|none"}',
     ].join('\n');
   }
 
@@ -110,7 +110,7 @@ function create({ store, claude, log = () => {}, fetchImpl, sleepImpl }) {
     if (!text) throw new Error('Claude لم يرجع مسودة');
     const lastIn = [...cv.messages].reverse().find((m) => m.dir === 'in');
     const forceHuman = !!lastIn && (escalates(lastIn.text, prof()) || ASKS_AI.test(lastIn.text));
-    cv.draft = { text, category: CATS.includes(j.category) ? j.category : 'other', urgent: j.urgent === true, needsHuman: j.needs_human === true || forceHuman, summary: clean(j.summary, 200), at: Date.now() };
+    cv.draft = { text, category: CATS.includes(j.category) ? j.category : 'other', urgent: j.urgent === true, needsHuman: j.needs_human === true || forceHuman, humanReason: clean(j.human_reason, 80) || (forceHuman ? 'كلمة تصعيد أو سؤال عن الهوية' : ''), summary: clean(j.summary, 200), at: Date.now() };
     if (!(extra && extra.followUp)) {
       const ds = ['open', 'closed', 'lost'].includes(j.deal_status) ? j.deal_status : (cv.deal && cv.deal.state) || 'none';
       cv.deal = { state: j.deal_status === 'none' && cv.deal ? cv.deal.state : ds, at: Date.now() };

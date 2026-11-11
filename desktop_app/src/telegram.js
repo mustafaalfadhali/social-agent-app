@@ -64,8 +64,8 @@ function create({ store, dataDir, commander, payments, whatsapp, log, api: apiOv
   function waCard(cv) {
     const v = whatsapp.view(cv), d = v.draft;
     const head = `${cv.draft && cv.draft.followUp ? '🔁 متابعة عميل متردد' : '💬 واتساب'} · ${v.name || '+' + v.phone}${d && d.urgent ? ' · 🔴 عاجل' : ''}${d && d.category ? ' · ' + d.category : ''}`;
-    const lines = [head, '', 'العميل: ' + v.last.slice(0, 500)];
-    if (d) { if (d.summary) lines.push('الخلاصة: ' + d.summary); lines.push('', 'المسودة:', d.text); if (d.needsHuman) lines.push('', '⚠ يحتاج نظرك (شكوى أو أمر حساس).'); }
+    const lines = [head, `📞 +${v.phone} · https://wa.me/${v.phone}`, '', 'العميل: ' + v.last.slice(0, 500)];
+    if (d) { if (d.summary) lines.push('الخلاصة: ' + d.summary); lines.push('', 'المسودة:', d.text); if (d.needsHuman) lines.push('', '⚠ يحتاج نظرك' + (d.humanReason ? ': ' + d.humanReason : ' (شكوى أو أمر حساس).')); }
     if (!v.windowOpen) lines.push('', `⏱ مرّت 24 ساعة: لا يرسل واتساب رداً حراً الآن. انسخ المسودة وأرسلها للعميل من جوالك (+${v.phone}) إن رغبت.`);
     const kb = d && v.status === 'draft' ? { inline_keyboard: [[{ text: '✅ إرسال', callback_data: `wok:${v.phone}` }], [{ text: '✏️ تعديل', callback_data: `wed:${v.phone}` }, { text: '❌ تجاهل', callback_data: `wno:${v.phone}` }], [{ text: '🙋 أتدخل أنا', callback_data: `wtk:${v.phone}` }]] } : { inline_keyboard: [] };
     return { text: lines.join('\n'), keyboard: kb };
@@ -81,27 +81,27 @@ function create({ store, dataDir, commander, payments, whatsapp, log, api: apiOv
     const cv = ev.cv, b = cv.booking || {}, d = b.data || {};
     const who = d.name || cv.name || 'العميل';
     if (ev.type === 'request' || ev.type === 'rejected') {
-      const lines = [ev.type === 'request' ? '🗓 طلب حجز جديد' : '↩️ العميل لم يناسبه الموعد' + (ev.text ? ': ' + ev.text.slice(0, 200) : ''), `العميل: ${who}`, `الجوال: +${cv.phone}`, `الخدمة: ${d.service || '—'}`, `الموقع: ${d.location || '—'}`, `السعر: ${d.price || '—'}`];
+      const lines = [ev.type === 'request' ? '🗓 طلب حجز جديد' : '↩️ العميل لم يناسبه الموعد' + (ev.text ? ': ' + ev.text.slice(0, 200) : ''), `العميل: ${who}`, `الجوال: +${cv.phone} · https://wa.me/${cv.phone}`, `الخدمة: ${d.service || '—'}`, `الموقع: ${d.location || '—'}`, `السعر: ${d.price || '—'}`];
       if (d.preferred) lines.push(`رغبة العميل: ${d.preferred}`);
       lines.push('', '✏️ اضغط «رد» على هذه الرسالة واكتب الموعد (اليوم والساعة).');
       const r = await send(c.chatId, lines.join('\n'));
       if (r && r.message_id) whatsapp.setBookingMsg(cv.phone, r.message_id);
     }
     if (ev.type === 'confirmed') {
-      await send(c.chatId, ['✅ تم تأكيد الحجز', `الاسم: ${who}`, `التواصل: +${cv.phone}`, `الموقع: ${d.location || '—'}`, `الخدمة: ${d.service || '—'}`, `السعر: ${d.price || '—'}`, `الوقت: ${b.slot || '—'}`].join('\n'));
+      await send(c.chatId, ['✅ تم تأكيد الحجز', `الاسم: ${who}`, `التواصل: +${cv.phone} · https://wa.me/${cv.phone}`, `الموقع: ${d.location || '—'}`, `الخدمة: ${d.service || '—'}`, `السعر: ${d.price || '—'}`, `الوقت: ${b.slot || '—'}`].join('\n'));
     }
   }
   if (whatsapp && whatsapp.onBooking) whatsapp.onBooking((ev) => bookingEvent(ev).catch((e) => log('تيليجرام: ' + redact(e.message))));
   async function autoEvent(ev) {
     const c = cfg(); if (!c.chatId || !c.token) return;
     const cv = ev.cv;
-    await send(c.chatId, `🤖 رد تلقائي · ${cv.name || '+' + cv.phone}\n\nالعميل: ${String(ev.customer || '').slice(0, 400)}\nالرد: ${String(ev.text).slice(0, 700)}`, { inline_keyboard: [[{ text: '🙋 أتدخل أنا', callback_data: `wtk:${cv.phone}` }]] });
+    await send(c.chatId, `🤖 رد تلقائي · ${cv.name || 'عميل'}\n📞 +${cv.phone} · https://wa.me/${cv.phone}\n\nالعميل: ${String(ev.customer || '').slice(0, 400)}\nالرد: ${String(ev.text).slice(0, 700)}`, { inline_keyboard: [[{ text: '🙋 أتدخل أنا', callback_data: `wtk:${cv.phone}` }]] });
   }
   if (whatsapp && whatsapp.onAuto) whatsapp.onAuto((ev) => autoEvent(ev).catch((e) => log('تيليجرام: ' + redact(e.message))));
   async function takeoverEvent(cv) {
     const c = cfg(); if (!c.chatId || !c.token) return;
     const last = (cv.messages[cv.messages.length - 1] || {}).text || '';
-    const r = await send(c.chatId, `🙋 تدخلك مفعّل · ${cv.name || '+' + cv.phone}\n\n${String(last).slice(0, 600)}\n\n✏️ اضغط «رد» على هذه الرسالة لترسل ردك للعميل.`, { inline_keyboard: [[{ text: '🤖 أرجّع المحادثة لسراج', callback_data: `wbk:${cv.phone}` }]] });
+    const r = await send(c.chatId, `🙋 تدخلك مفعّل · ${cv.name || 'عميل'}\n📞 +${cv.phone} · https://wa.me/${cv.phone}\n\n${String(last).slice(0, 600)}\n\n✏️ اضغط «رد» على هذه الرسالة لترسل ردك للعميل.`, { inline_keyboard: [[{ text: '🤖 أرجّع المحادثة لسراج', callback_data: `wbk:${cv.phone}` }]] });
     if (r && r.message_id) whatsapp.noteTakeoverMsg(cv.phone, r.message_id);
   }
   if (whatsapp && whatsapp.onTakeover) whatsapp.onTakeover((cv) => takeoverEvent(cv).catch((e) => log('تيليجرام: ' + redact(e.message))));
