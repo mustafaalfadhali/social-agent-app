@@ -79,7 +79,7 @@ function publicState() {
     odoo: { url: d.odoo.url, db: d.odoo.db, login: d.odoo.login, hasKey: !!d.odoo.apiKey },
     proposals: (d.proposals || []).slice(0, 20),
     visits: { url: d.visits.url, hasToken: !!d.visits.token },
-    wa: { workerUrl: d.wa.workerUrl, phoneId: d.wa.phoneId, hasToken: !!d.wa.token, hasBridgeToken: !!d.wa.pullToken, waiting: wa ? wa.status().waiting : 0 },
+    wa: { workerUrl: d.wa.workerUrl, phoneId: d.wa.phoneId, hasToken: !!d.wa.token, hasBridgeToken: !!d.wa.pullToken, profile: { ...require('./whatsapp').DEFAULT_PROFILE, ...(d.wa.profile || {}) }, waiting: wa ? wa.status().waiting : 0 },
     telegram: { hasToken: !!d.telegram.token, paired: !!d.telegram.chatId, username: d.telegram.username || '' },
     media: d.media.map((m) => ({ ...m, url: 'file:///' + path.join(mediaDir, m.file).replace(/\\/g, '/') })),
     posts: d.posts,
@@ -149,6 +149,11 @@ function registerIpc() {
     const bridge = f.pullToken ? sec.str(f.pullToken, 200).trim() : c.pullToken;
     if (bridge && bridge.length < 24) throw new Error('رمز الجسر قصير (24 حرفاً على الأقل)');
     Object.assign(c, { workerUrl: url, phoneId, pullToken: bridge, token: f.token ? sec.str(f.token, 600).trim() : c.token });
+    if (f.profile && typeof f.profile === 'object') { // ملف الوكيل: نصوص فقط ومحدودة الطول
+      const keys = Object.keys(require('./whatsapp').DEFAULT_PROFILE), pr = {};
+      for (const k of keys) pr[k] = sec.str(f.profile[k] ?? '', 2000).trim() || require('./whatsapp').DEFAULT_PROFILE[k];
+      c.profile = pr;
+    }
     store.save();
   });
   handle('wa:test', () => wa.test());

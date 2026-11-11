@@ -91,6 +91,17 @@
         <div class="row"><button id="btnWaSave">حفظ</button><button class="ghost" id="btnWaTest">اختبار الجسر</button><button class="ghost" id="btnWaOff">فصل</button><span id="waStatus" class="muted"></span></div>
       </div>
       <div class="card">
+        <h3>ملف وكيل خدمة العملاء</h3>
+        <p class="muted">يحدد أسلوب الرد وما يُسمح به. كل رد يمر عليك قبل الإرسال.</p>
+        <label>النبرة<input id="waTone"></label>
+        <label>تعليمات التشغيل<textarea id="waInstr" rows="3"></textarea></label>
+        <label>دليل الخدمات المسموح<textarea id="waServices" rows="4"></textarea></label>
+        <label>دليل التسعير المبدئي<textarea id="waPricing" rows="4"></textarea></label>
+        <label>دوام الزيارات<textarea id="waHours" rows="2"></textarea></label>
+        <label>كلمات التصعيد (تحويل لك)<input id="waEscalate"></label>
+        <div class="row"><button id="btnWaProfile">حفظ ملف الوكيل</button></div>
+      </div>
+      <div class="card">
         <h3>زيارات الفروع — قراءة فقط</h3>
         <p class="muted">يقرأ تقدم الزيارات الشهري لكل براند من برنامج الزيارات. الرمز يُنشأ على السيرفر عند تفعيل الواجهة (لا يعطي أي صلاحية تعديل).</p>
         <label>رابط برنامج الزيارات<input id="vsUrl" placeholder="https://branches.mustafa-server.vip"></label>

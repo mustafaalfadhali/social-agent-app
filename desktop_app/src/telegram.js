@@ -75,6 +75,23 @@ function create({ store, dataDir, commander, payments, whatsapp, log, api: apiOv
     const cd = waCard(cv); await send(c.chatId, cd.text, cd.keyboard);
   }
   if (whatsapp) whatsapp.onDraft((cv) => notifyDraft(cv).catch((e) => log('تيليجرام: ' + redact(e.message))));
+  // ---------- الحجز: طلب للمالك ثم ملخص التأكيد ----------
+  async function bookingEvent(ev) {
+    const c = cfg(); if (!c.chatId || !c.token) return;
+    const cv = ev.cv, b = cv.booking || {}, d = b.data || {};
+    const who = d.name || cv.name || 'العميل';
+    if (ev.type === 'request' || ev.type === 'rejected') {
+      const lines = [ev.type === 'request' ? '🗓 طلب حجز جديد' : '↩️ العميل لم يناسبه الموعد' + (ev.text ? ': ' + ev.text.slice(0, 200) : ''), `العميل: ${who}`, `الجوال: +${cv.phone}`, `الخدمة: ${d.service || '—'}`, `الموقع: ${d.location || '—'}`, `السعر: ${d.price || '—'}`];
+      if (d.preferred) lines.push(`رغبة العميل: ${d.preferred}`);
+      lines.push('', '✏️ اضغط «رد» على هذه الرسالة واكتب الموعد (اليوم والساعة).');
+      const r = await send(c.chatId, lines.join('\n'));
+      if (r && r.message_id) whatsapp.setBookingMsg(cv.phone, r.message_id);
+    }
+    if (ev.type === 'confirmed') {
+      await send(c.chatId, ['✅ تم تأكيد الحجز', `الاسم: ${who}`, `التواصل: +${cv.phone}`, `الموقع: ${d.location || '—'}`, `الخدمة: ${d.service || '—'}`, `السعر: ${d.price || '—'}`, `الوقت: ${b.slot || '—'}`].join('\n'));
+    }
+  }
+  if (whatsapp && whatsapp.onBooking) whatsapp.onBooking((ev) => bookingEvent(ev).catch((e) => log('تيليجرام: ' + redact(e.message))));
   async function onWaCallback(q, act, phone) {
     const chatId = q.message.chat.id, mid = q.message.message_id;
     let note = '';
@@ -167,6 +184,14 @@ function create({ store, dataDir, commander, payments, whatsapp, log, api: apiOv
       const ed = waEditing; waEditing = null;
       if (Date.now() < ed.expires) {
         const cv = whatsapp.setDraft(ed.phone, text); const cd = waCard(cv);
+        await send(m.chat.id, cd.text, cd.keyboard); return;
+      }
+    }
+    if (m.reply_to_message && whatsapp && whatsapp.bookingByMsg) { // رد المالك بموعد الحجز
+      const ph = whatsapp.bookingByMsg(m.reply_to_message.message_id);
+      if (ph) {
+        await send(m.chat.id, 'جارِ صياغة رسالة الموعد للعميل…');
+        const cv = await whatsapp.setSlot(ph, text); const cd = waCard(cv);
         await send(m.chat.id, cd.text, cd.keyboard); return;
       }
     }
