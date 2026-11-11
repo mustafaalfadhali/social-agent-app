@@ -63,11 +63,11 @@ function create({ store, dataDir, commander, payments, whatsapp, log, api: apiOv
   // ---------- بطاقة رد العميل (واتساب): لا يُرسل شيء إلا بزر «إرسال» ----------
   function waCard(cv) {
     const v = whatsapp.view(cv), d = v.draft;
-    const head = `💬 واتساب · ${v.name || '+' + v.phone}${d && d.urgent ? ' · 🔴 عاجل' : ''}${d && d.category ? ' · ' + d.category : ''}`;
+    const head = `${cv.draft && cv.draft.followUp ? '🔁 متابعة عميل متردد' : '💬 واتساب'} · ${v.name || '+' + v.phone}${d && d.urgent ? ' · 🔴 عاجل' : ''}${d && d.category ? ' · ' + d.category : ''}`;
     const lines = [head, '', 'العميل: ' + v.last.slice(0, 500)];
     if (d) { if (d.summary) lines.push('الخلاصة: ' + d.summary); lines.push('', 'المسودة:', d.text); if (d.needsHuman) lines.push('', '⚠ يحتاج نظرك (شكوى أو أمر حساس).'); }
-    if (!v.windowOpen) lines.push('', '⏱ مرّت 24 ساعة: لا يمكن الرد الحر الآن.');
-    const kb = d && v.status === 'draft' ? { inline_keyboard: [[{ text: '✅ إرسال', callback_data: `wok:${v.phone}` }], [{ text: '✏️ تعديل', callback_data: `wed:${v.phone}` }, { text: '❌ تجاهل', callback_data: `wno:${v.phone}` }]] } : { inline_keyboard: [] };
+    if (!v.windowOpen) lines.push('', `⏱ مرّت 24 ساعة: لا يرسل واتساب رداً حراً الآن. انسخ المسودة وأرسلها للعميل من جوالك (+${v.phone}) إن رغبت.`);
+    const kb = d && v.status === 'draft' ? { inline_keyboard: [[{ text: '✅ إرسال', callback_data: `wok:${v.phone}` }], [{ text: '✏️ تعديل', callback_data: `wed:${v.phone}` }, { text: '❌ تجاهل', callback_data: `wno:${v.phone}` }], [{ text: '🙋 أتدخل أنا', callback_data: `wtk:${v.phone}` }]] } : { inline_keyboard: [] };
     return { text: lines.join('\n'), keyboard: kb };
   }
   async function notifyDraft(cv) {
@@ -92,6 +92,13 @@ function create({ store, dataDir, commander, payments, whatsapp, log, api: apiOv
     }
   }
   if (whatsapp && whatsapp.onBooking) whatsapp.onBooking((ev) => bookingEvent(ev).catch((e) => log('تيليجرام: ' + redact(e.message))));
+  async function takeoverEvent(cv) {
+    const c = cfg(); if (!c.chatId || !c.token) return;
+    const last = (cv.messages[cv.messages.length - 1] || {}).text || '';
+    const r = await send(c.chatId, `🙋 تدخلك مفعّل · ${cv.name || '+' + cv.phone}\n\n${String(last).slice(0, 600)}\n\n✏️ اضغط «رد» على هذه الرسالة لترسل ردك للعميل.`, { inline_keyboard: [[{ text: '🤖 أرجّع المحادثة لسراج', callback_data: `wbk:${cv.phone}` }]] });
+    if (r && r.message_id) whatsapp.noteTakeoverMsg(cv.phone, r.message_id);
+  }
+  if (whatsapp && whatsapp.onTakeover) whatsapp.onTakeover((cv) => takeoverEvent(cv).catch((e) => log('تيليجرام: ' + redact(e.message))));
   async function onWaCallback(q, act, phone) {
     const chatId = q.message.chat.id, mid = q.message.message_id;
     let note = '';
@@ -99,6 +106,8 @@ function create({ store, dataDir, commander, payments, whatsapp, log, api: apiOv
       if (!WA_PHONE_RE.test(phone || '')) throw new Error('محادثة غير صالحة');
       if (act === 'wok') { await whatsapp.send(phone); note = 'أُرسل الرد ✅'; }
       if (act === 'wno') { whatsapp.ignore(phone); note = 'تم التجاهل'; }
+      if (act === 'wtk') { whatsapp.setTakeover(phone, true); note = 'تدخلك مفعّل'; await takeoverEvent(whatsapp.convs()[phone]); }
+      if (act === 'wbk') { whatsapp.setTakeover(phone, false); note = 'رجعت المحادثة لسراج'; }
       if (act === 'wed') { waEditing = { phone, expires: Date.now() + 10 * 60 * 1000 }; note = 'أرسل نص الرد الجديد'; await send(chatId, '✏️ اكتب الآن نص الرد الذي تريد إرساله للعميل (خلال 10 دقائق).'); }
     } catch (e) { note = e.message; }
     const cv = whatsapp.convs()[phone];
@@ -187,6 +196,10 @@ function create({ store, dataDir, commander, payments, whatsapp, log, api: apiOv
         await send(m.chat.id, cd.text, cd.keyboard); return;
       }
     }
+    if (m.reply_to_message && whatsapp && whatsapp.takeoverByMsg) { // رد المالك المباشر على عميل تدخّل فيه
+      const tp = whatsapp.takeoverByMsg(m.reply_to_message.message_id);
+      if (tp) { await whatsapp.ownerReply(tp, text); await send(m.chat.id, '✅ أُرسل ردك للعميل'); return; }
+    }
     if (m.reply_to_message && whatsapp && whatsapp.bookingByMsg) { // رد المالك بموعد الحجز
       const ph = whatsapp.bookingByMsg(m.reply_to_message.message_id);
       if (ph) {
@@ -217,7 +230,7 @@ function create({ store, dataDir, commander, payments, whatsapp, log, api: apiOv
     const c = cfg();
     if (!q.message || !c.chatId || q.message.chat.id !== c.chatId || (q.from && q.from.id !== c.chatId)) return; // حسابك فقط
     const [act, id, inv] = String(q.data || '').split(':');
-    if (whatsapp && ['wok', 'wed', 'wno'].includes(act)) return onWaCallback(q, act, id);
+    if (whatsapp && ['wok', 'wed', 'wno', 'wtk', 'wbk'].includes(act)) return onWaCallback(q, act, id);
     const chatId = q.message.chat.id, mid = q.message.message_id;
     if (!['sel', 'ok', 'yes', 'back', 'no'].includes(act) || !UUID_RE.test(id || '')) { await api('answerCallbackQuery', { callback_query_id: q.id }); return; }
     let note = '';
