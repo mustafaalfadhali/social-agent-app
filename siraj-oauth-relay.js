@@ -21,6 +21,7 @@ export default {
         if (!env.APP_SECRET || !eq(s, await sign(raw, env.APP_SECRET))) return new Response('unauthorized', { status: 401 });
         let j;
         try { j = JSON.parse(new TextDecoder().decode(raw)); } catch { return new Response('ok'); }
+        let stored = false;
         for (const e of j.entry || []) for (const c of e.changes || []) {
           const v = c.value || {};
           const names = {};
@@ -28,14 +29,21 @@ export default {
           for (const m of v.messages || []) {
             if (!m || !m.id || !/^\d{6,20}$/.test(String(m.from))) continue;
             const rec = { id: String(m.id), from: String(m.from), name: String(names[m.from] || '').slice(0, 80), type: String(m.type || ''), ts: Number(m.timestamp) || 0, text: m.type === 'text' ? String((m.text || {}).body || '').slice(0, 2000) : '[' + String(m.type || '') + ']', phone_id: String((v.metadata || {}).phone_number_id || '') };
-            await env.WA.put('m:' + String(rec.ts).padStart(12, '0') + ':' + rec.id, JSON.stringify(rec), { expirationTtl: 604800 });
+            await env.WA.put('m:' + String(rec.ts).padStart(12, '0') + ':' + rec.id, JSON.stringify(rec), { expirationTtl: 604800 }); stored = true;
           }
         }
+        if (stored) await env.WA.put('flag', '1', { expirationTtl: 604800 });
         return new Response('ok');
       }
     }
     if (p === '/wa/pull' && r.method === 'GET') {
       if (!authed(r, env)) return new Response('unauthorized', { status: 401 });
+      const flag = await env.WA.get('flag');
+      if (!flag) {
+        const last = Number(await env.WA.get('scan')) || 0, now = Date.now();
+        if (now - last < 600000) return new Response(JSON.stringify({ messages: [] }), { headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
+        await env.WA.put('scan', String(now), { expirationTtl: 86400 });
+      }
       const l = await env.WA.list({ prefix: 'm:', limit: 50 });
       const out = [];
       for (const k of l.keys) { const v = await env.WA.get(k.name); if (v) { try { out.push({ key: k.name, ...JSON.parse(v) }); } catch {} } }
@@ -47,6 +55,7 @@ export default {
       try { b = await r.json(); } catch { return new Response('bad', { status: 400 }); }
       let n = 0;
       for (const k of Array.isArray(b.keys) ? b.keys.slice(0, 50) : []) if (KEY_RE.test(String(k))) { await env.WA.delete(k); n++; }
+      if (n && !(await env.WA.list({ prefix: 'm:', limit: 1 })).keys.length) await env.WA.delete('flag');
       return new Response(JSON.stringify({ deleted: n }), { headers: { 'content-type': 'application/json' } });
     }
     const t = Object.hasOwn(T, p) ? T[p] : null;
