@@ -19,6 +19,7 @@ const DEFAULT_PROFILE = {
   hours: 'كل زيارة ساعة كاملة. تبدأ الحجوزات من 10 صباحاً حتى 9 مساءً، ولا يُحجز وقت متداخل.',
   escalate: 'شكوى، استرجاع، فاتورة، مدير',
   followDays: '2',
+  autoReply: 'on',
 };
 
 function checkUrl(raw) {
@@ -27,9 +28,10 @@ function checkUrl(raw) {
   return u.origin;
 }
 
-function create({ store, claude, log = () => {}, fetchImpl }) {
+function create({ store, claude, log = () => {}, fetchImpl, sleepImpl }) {
+  const sleep = sleepImpl || ((ms) => new Promise((r) => setTimeout(r, ms)));
   const doFetch = fetchImpl || fetch;
-  let timer = null, busy = false, draftListener = null, bookingListener = null, takeoverListener = null;
+  let timer = null, busy = false, draftListener = null, bookingListener = null, takeoverListener = null, autoListener = null;
   const cfg = () => store.get().wa;
   const convs = () => (cfg().convs ||= {});
   const configured = () => !!(cfg().workerUrl && cfg().pullToken);
@@ -149,6 +151,31 @@ function create({ store, claude, log = () => {}, fetchImpl }) {
     setDraft(phone, text); return send(phone);
   }
 
+  // ---------- الرد التلقائي: يُرسل بلا موافقة إلا ما يحتاج تدخلك (شكوى/استعجال بشري/نافذة مغلقة) ----------
+  const autoOn = () => prof().autoReply !== 'off';
+  function setAuto(on) { const w = cfg(); w.profile = { ...prof(), autoReply: on ? 'on' : 'off' }; store.save(); return on; }
+  function autoAllowed(cv) {
+    if (!autoOn() || cv.takeover || !cv.draft || !cv.draft.text || cv.draft.needsHuman || cv.status !== 'draft') return false;
+    if (Date.now() - cv.lastInboundAt > WINDOW_MS) return false;
+    const now = Date.now(); cv.autoStamps = (cv.autoStamps || []).filter((t) => now - t < 3600000);
+    return cv.autoStamps.length < 8; // حماية من حلقة ردود
+  }
+  async function deliver(cv) {
+    if (autoAllowed(cv)) {
+      try {
+        await sleep(Math.min(9000, 2000 + String(cv.draft.text).length * 40)); // مهلة قصيرة تشبه الكتابة البشرية
+        if (cv.status !== 'draft' || cv.takeover || !autoOn()) throw new Error('تغيّرت الحالة');
+        const text = cv.draft.text, lastIn = [...cv.messages].reverse().find((m) => m.dir === 'in');
+        await send(cv.phone);
+        (cv.autoStamps ||= []).push(Date.now()); store.save();
+        if (autoListener) await autoListener({ cv, text, customer: lastIn ? lastIn.text : '' });
+        return 'auto';
+      } catch (e) { log('واتساب: تعذّر الإرسال التلقائي: ' + String(e.message).slice(0, 120)); }
+    }
+    if (draftListener) await draftListener(cv);
+    return 'card';
+  }
+
   // ---------- متابعة العملاء المترددين: كل يومين حتى 3 محاولات، بموافقتك ----------
   async function checkFollowUps(now = Date.now()) {
     const days = Math.max(1, Math.min(14, Number(prof().followDays) || 2)), span = days * 86400000;
@@ -164,7 +191,7 @@ function create({ store, claude, log = () => {}, fetchImpl }) {
       try {
         await makeDraft(cv.phone, { followUp: (cv.followCount || 0) + 1, days });
         cv.followCount = (cv.followCount || 0) + 1; cv.lastFollowAt = now; cv.draft.followUp = true; store.save();
-        if (draftListener) await draftListener(cv);
+        await deliver(cv);
         made++;
       } catch (e) { log('واتساب: تعذّرت مسودة المتابعة: ' + String(e.message).slice(0, 120)); }
     }
@@ -184,7 +211,7 @@ function create({ store, claude, log = () => {}, fetchImpl }) {
       for (const phone of touched) {
         const tcv = convs()[phone];
         if (tcv && tcv.takeover) { tcv.status = 'new'; store.save(); if (takeoverListener) { try { await takeoverListener(tcv); } catch (e) { log('واتساب: ' + String(e.message).slice(0, 120)); } } continue; }
-        try { const cv = await makeDraft(phone); if (draftListener) await draftListener(cv); }
+        try { const cv = await makeDraft(phone); await deliver(cv); }
         catch (e) { log('واتساب: تعذّرت كتابة المسودة: ' + String(e.message).slice(0, 120)); }
       }
       await checkFollowUps().catch((e) => log('واتساب: ' + String(e.message).slice(0, 120)));
@@ -236,8 +263,9 @@ function create({ store, claude, log = () => {}, fetchImpl }) {
   const onDraft = (fn) => { draftListener = fn; };
   const onBooking = (fn) => { bookingListener = fn; };
   const onTakeover = (fn) => { takeoverListener = fn; };
+  const onAuto = (fn) => { autoListener = fn; };
 
-  return { poll, makeDraft, setDraft, send, ignore, list, status, test, start, stop, checkFollowUps, onDraft, onBooking, onTakeover, setTakeover, noteTakeoverMsg, takeoverByMsg, ownerReply, setSlot, bookingByMsg, setBookingMsg, view, convs, CAT_AR };
+  return { poll, makeDraft, setDraft, send, ignore, list, status, test, start, stop, checkFollowUps, onDraft, onBooking, onTakeover, onAuto, deliver, setAuto, autoOn, setTakeover, noteTakeoverMsg, takeoverByMsg, ownerReply, setSlot, bookingByMsg, setBookingMsg, view, convs, CAT_AR };
 }
 
 module.exports = { create, checkUrl, DEFAULT_PROFILE };

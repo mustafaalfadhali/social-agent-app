@@ -92,6 +92,12 @@ function create({ store, dataDir, commander, payments, whatsapp, log, api: apiOv
     }
   }
   if (whatsapp && whatsapp.onBooking) whatsapp.onBooking((ev) => bookingEvent(ev).catch((e) => log('تيليجرام: ' + redact(e.message))));
+  async function autoEvent(ev) {
+    const c = cfg(); if (!c.chatId || !c.token) return;
+    const cv = ev.cv;
+    await send(c.chatId, `🤖 رد تلقائي · ${cv.name || '+' + cv.phone}\n\nالعميل: ${String(ev.customer || '').slice(0, 400)}\nالرد: ${String(ev.text).slice(0, 700)}`, { inline_keyboard: [[{ text: '🙋 أتدخل أنا', callback_data: `wtk:${cv.phone}` }]] });
+  }
+  if (whatsapp && whatsapp.onAuto) whatsapp.onAuto((ev) => autoEvent(ev).catch((e) => log('تيليجرام: ' + redact(e.message))));
   async function takeoverEvent(cv) {
     const c = cfg(); if (!c.chatId || !c.token) return;
     const last = (cv.messages[cv.messages.length - 1] || {}).text || '';
@@ -172,6 +178,10 @@ function create({ store, dataDir, commander, payments, whatsapp, log, api: apiOv
     if (limited()) { await send(m.chat.id, 'مهلاً، رسائل كثيرة. حاول بعد دقيقة.'); return; }
 
     const text = String(m.text || m.caption || '').trim().slice(0, 2000);
+    if (whatsapp && whatsapp.setAuto && /^\/(pause|resume)\b/.test(text)) {
+      const on = /^\/resume/.test(text); whatsapp.setAuto(on);
+      await send(m.chat.id, on ? '▶️ عاد الرد التلقائي على عملاء واتساب.' : '⏸ أُوقف الرد التلقائي. ستصلك الردود كمسودات للموافقة. للإعادة أرسل /resume'); return;
+    }
     if (/^\/(start|help)\b/.test(text)) {
       await send(m.chat.id, 'اكتب طلبك مباشرة، مثل:\n• كم المستحقات المفتوحة؟\n• أي عقود تنتهي قريباً؟\nأو أرسل صورة حوالة لأسجّل الدفعة بعد موافقتك.');
       return;
@@ -204,8 +214,9 @@ function create({ store, dataDir, commander, payments, whatsapp, log, api: apiOv
       const ph = whatsapp.bookingByMsg(m.reply_to_message.message_id);
       if (ph) {
         await send(m.chat.id, 'جارِ صياغة رسالة الموعد للعميل…');
-        const cv = await whatsapp.setSlot(ph, text); const cd = waCard(cv);
-        await send(m.chat.id, cd.text, cd.keyboard); return;
+        const cv = await whatsapp.setSlot(ph, text);
+        if (whatsapp.deliver) { await whatsapp.deliver(cv); return; }
+        const cd = waCard(cv); await send(m.chat.id, cd.text, cd.keyboard); return;
       }
     }
     history.push({ role: 'user', text }); if (history.length > 8) history.shift();
