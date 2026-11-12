@@ -16,7 +16,7 @@ const same = (a, b) => { const x = Buffer.from(String(a)), y = Buffer.from(Strin
 const WA_PHONE_RE = /^\d{6,20}$/;
 
 function create({ store, dataDir, commander, payments, whatsapp, log, api: apiOverride }) {
-  let running = false, offset = 0, pairing = null, username = '', failures = 0, waEditing = null;
+  let running = false, offset = 0, pairing = null, username = '', failures = 0, waEditing = null, waMsg = null;
   const stamps = [], history = [];
   const cfg = () => store.get().telegram;
   const redact = (s) => { const t = cfg().token; let m = String(s); if (t) m = m.split(t).join('***'); return m.replace(/bot\d{6,12}:[A-Za-z0-9_-]+/g, 'bot***'); };
@@ -67,12 +67,13 @@ function create({ store, dataDir, commander, payments, whatsapp, log, api: apiOv
     const lines = [head, `📞 +${v.phone} · https://wa.me/${v.phone}`, '', 'العميل: ' + v.last.slice(0, 500)];
     if (d) { if (d.summary) lines.push('الخلاصة: ' + d.summary); lines.push('', 'المسودة:', d.text); if (d.needsHuman) lines.push('', '⚠ يحتاج نظرك' + (d.humanReason ? ': ' + d.humanReason : ' (شكوى أو أمر حساس).')); }
     if (!v.windowOpen) lines.push('', `⏱ مرّت 24 ساعة: لا يرسل واتساب رداً حراً الآن. انسخ المسودة وأرسلها للعميل من جوالك (+${v.phone}) إن رغبت.`);
-    const kb = d && v.status === 'draft' ? { inline_keyboard: [[{ text: '✅ إرسال', callback_data: `wok:${v.phone}` }], [{ text: '✏️ تعديل', callback_data: `wed:${v.phone}` }, { text: '❌ تجاهل', callback_data: `wno:${v.phone}` }], [{ text: '🙋 أتدخل أنا', callback_data: `wtk:${v.phone}` }]] } : { inline_keyboard: [] };
+    const kb = d && v.status === 'draft' ? { inline_keyboard: [[{ text: '✅ إرسال', callback_data: `wok:${v.phone}` }], [{ text: '✏️ تعديل', callback_data: `wed:${v.phone}` }, { text: '❌ تجاهل', callback_data: `wno:${v.phone}` }], [{ text: '🙋 أتدخل أنا', callback_data: `wtk:${v.phone}` }, { text: '✉️ رسالة للعميل', callback_data: `wmsg:${v.phone}` }]] } : { inline_keyboard: [[{ text: '✉️ رسالة للعميل', callback_data: `wmsg:${v.phone}` }]] };
     return { text: lines.join('\n'), keyboard: kb };
   }
   async function notifyDraft(cv) {
     const c = cfg(); if (!c.chatId || !c.token) return;
-    const cd = waCard(cv); await send(c.chatId, cd.text, cd.keyboard);
+    const cd = waCard(cv); const r0 = await send(c.chatId, cd.text, cd.keyboard);
+    if (r0 && r0.message_id && whatsapp.noteMsg) whatsapp.noteMsg(cv.phone, r0.message_id);
   }
   if (whatsapp) whatsapp.onDraft((cv) => notifyDraft(cv).catch((e) => log('تيليجرام: ' + redact(e.message))));
   // ---------- الحجز: طلب للمالك ثم ملخص التأكيد ----------
@@ -95,7 +96,8 @@ function create({ store, dataDir, commander, payments, whatsapp, log, api: apiOv
   async function autoEvent(ev) {
     const c = cfg(); if (!c.chatId || !c.token) return;
     const cv = ev.cv;
-    await send(c.chatId, `🤖 رد تلقائي · ${cv.name || 'عميل'}\n📞 +${cv.phone} · https://wa.me/${cv.phone}\n\nالعميل: ${String(ev.customer || '').slice(0, 400)}\nالرد: ${String(ev.text).slice(0, 700)}`, { inline_keyboard: [[{ text: '🙋 أتدخل أنا', callback_data: `wtk:${cv.phone}` }]] });
+    const r1 = await send(c.chatId, `🤖 رد تلقائي · ${cv.name || 'عميل'}\n📞 +${cv.phone} · https://wa.me/${cv.phone}\n\nالعميل: ${String(ev.customer || '').slice(0, 400)}\nالرد: ${String(ev.text).slice(0, 700)}\n\n✏️ للرد بنفسك: اضغط «رد» على هذه الرسالة.`, { inline_keyboard: [[{ text: '✉️ رسالة للعميل', callback_data: `wmsg:${cv.phone}` }, { text: '🙋 أتدخل أنا', callback_data: `wtk:${cv.phone}` }]] });
+    if (r1 && r1.message_id && whatsapp.noteMsg) whatsapp.noteMsg(cv.phone, r1.message_id);
   }
   if (whatsapp && whatsapp.onAuto) whatsapp.onAuto((ev) => autoEvent(ev).catch((e) => log('تيليجرام: ' + redact(e.message))));
   async function takeoverEvent(cv) {
@@ -114,6 +116,7 @@ function create({ store, dataDir, commander, payments, whatsapp, log, api: apiOv
       if (act === 'wno') { whatsapp.ignore(phone); note = 'تم التجاهل'; }
       if (act === 'wtk') { whatsapp.setTakeover(phone, true); note = 'تدخلك مفعّل'; await takeoverEvent(whatsapp.convs()[phone]); }
       if (act === 'wbk') { whatsapp.setTakeover(phone, false); note = 'رجعت المحادثة لسراج'; }
+      if (act === 'wmsg') { waMsg = { phone, expires: Date.now() + 10 * 60 * 1000 }; note = 'اكتب رسالتك'; await send(chatId, '✉️ اكتب الآن الرسالة التي تريد إرسالها للعميل (خلال 10 دقائق). سأرسلها كما هي.'); }
       if (act === 'wed') { waEditing = { phone, expires: Date.now() + 10 * 60 * 1000 }; note = 'أرسل نص الرد الجديد'; await send(chatId, '✏️ اكتب الآن نص الرد الذي تريد إرساله للعميل (خلال 10 دقائق).'); }
     } catch (e) { note = e.message; }
     const cv = whatsapp.convs()[phone];
@@ -178,6 +181,12 @@ function create({ store, dataDir, commander, payments, whatsapp, log, api: apiOv
     if (limited()) { await send(m.chat.id, 'مهلاً، رسائل كثيرة. حاول بعد دقيقة.'); return; }
 
     const text = String(m.text || m.caption || '').trim().slice(0, 2000);
+    if (whatsapp && whatsapp.setTakeover && text.length <= 50 && /(ارجع|رجع|أرجع|ارجّع|فعّل|فعل|شغل|شغّل)/.test(text) && /(سراج|الالي|الآلي|التلقائي|المحادثة)/.test(text) && !/(لا\s)/.test(text)) {
+      const tk = Object.values(whatsapp.convs()).filter((c) => c.takeover);
+      tk.forEach((c) => whatsapp.setTakeover(c.phone, false));
+      if (/(الالي|الآلي|التلقائي)/.test(text) && whatsapp.setAuto) whatsapp.setAuto(true);
+      await send(m.chat.id, tk.length ? `🤖 رجعت ${tk.length} محادثة لسراج، والرد التلقائي شغّال.` : '🤖 لا توجد محادثات في وضع تدخلك. الرد التلقائي شغّال.'); return;
+    }
     if (whatsapp && whatsapp.setAuto && /^\/(pause|resume)\b/.test(text)) {
       const on = /^\/resume/.test(text); whatsapp.setAuto(on);
       await send(m.chat.id, on ? '▶️ عاد الرد التلقائي على عملاء واتساب.' : '⏸ أُوقف الرد التلقائي. ستصلك الردود كمسودات للموافقة. للإعادة أرسل /resume'); return;
@@ -199,6 +208,15 @@ function create({ store, dataDir, commander, payments, whatsapp, log, api: apiOv
       return;
     }
     if (!text) return;
+    if (waMsg && whatsapp) { // رسالة حرة من المالك للعميل
+      const wm = waMsg; waMsg = null;
+      if (Date.now() < wm.expires) {
+        try { await whatsapp.ownerReply(wm.phone, text); } catch (e) { await send(m.chat.id, '⚠ تعذّر الإرسال: ' + redact(e.message).slice(0, 200)); return; }
+        const r3 = await send(m.chat.id, '✅ أُرسلت رسالتك للعميل.', { inline_keyboard: [[{ text: '✉️ رسالة أخرى للعميل', callback_data: `wmsg:${wm.phone}` }, { text: '🤖 أرجّع المحادثة لسراج', callback_data: `wbk:${wm.phone}` }]] });
+        if (r3 && r3.message_id) whatsapp.noteMsg(wm.phone, r3.message_id);
+        return;
+      }
+    }
     if (waEditing && whatsapp) { // نص رد معدّل لمحادثة واتساب
       const ed = waEditing; waEditing = null;
       if (Date.now() < ed.expires) {
@@ -207,8 +225,13 @@ function create({ store, dataDir, commander, payments, whatsapp, log, api: apiOv
       }
     }
     if (m.reply_to_message && whatsapp && whatsapp.takeoverByMsg) { // رد المالك المباشر على عميل تدخّل فيه
-      const tp = whatsapp.takeoverByMsg(m.reply_to_message.message_id);
-      if (tp) { await whatsapp.ownerReply(tp, text); await send(m.chat.id, '✅ أُرسل ردك للعميل'); return; }
+      const tp = (whatsapp.phoneByMsg && whatsapp.phoneByMsg(m.reply_to_message.message_id)) || whatsapp.takeoverByMsg(m.reply_to_message.message_id);
+      if (tp) {
+        try { await whatsapp.ownerReply(tp, text); } catch (e) { await send(m.chat.id, '⚠ تعذّر الإرسال: ' + redact(e.message).slice(0, 200)); return; }
+        const r2 = await send(m.chat.id, '✅ أُرسل ردك للعميل. للرد مرة أخرى اضغط «رد» على هذه الرسالة.');
+        if (r2 && r2.message_id) whatsapp.noteMsg(tp, r2.message_id);
+        return;
+      }
     }
     if (m.reply_to_message && whatsapp && whatsapp.bookingByMsg) { // رد المالك بموعد الحجز
       const ph = whatsapp.bookingByMsg(m.reply_to_message.message_id);
@@ -241,7 +264,7 @@ function create({ store, dataDir, commander, payments, whatsapp, log, api: apiOv
     const c = cfg();
     if (!q.message || !c.chatId || q.message.chat.id !== c.chatId || (q.from && q.from.id !== c.chatId)) return; // حسابك فقط
     const [act, id, inv] = String(q.data || '').split(':');
-    if (whatsapp && ['wok', 'wed', 'wno', 'wtk', 'wbk'].includes(act)) return onWaCallback(q, act, id);
+    if (whatsapp && ['wok', 'wed', 'wno', 'wtk', 'wbk', 'wmsg'].includes(act)) return onWaCallback(q, act, id);
     const chatId = q.message.chat.id, mid = q.message.message_id;
     if (!['sel', 'ok', 'yes', 'back', 'no'].includes(act) || !UUID_RE.test(id || '')) { await api('answerCallbackQuery', { callback_query_id: q.id }); return; }
     let note = '';

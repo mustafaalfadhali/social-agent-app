@@ -267,6 +267,27 @@ const Office = (() => {
       if (!confirm('إرسال هذا الرد إلى العميل على واتساب؟')) return;
       await call('wa:send', phone); toast('أُرسل الرد ✅'); await refresh(); loadWa(el);
     }); });
+    el.insertAdjacentHTML('beforeend', `<div class="prop" style="border-style:solid"><b>💬 كل المحادثات (${r.data.length})</b>${r.data.map((c) => `<div data-th="${esc2(c.phone)}" style="cursor:pointer;padding:6px 0;border-bottom:1px solid var(--line)"><b>${esc2(c.name || '+' + c.phone)}</b>${c.takeover ? ' 🙋' : ''}<br><span class="muted">${esc2(c.last.slice(0, 70))}</span><div data-thbox style="display:none"></div></div>`).join('')}</div>`);
+    el.querySelectorAll('[data-th]').forEach((row) => { row.onclick = async (ev) => {
+      if (ev.target.closest('[data-thbox]')) return;
+      const box = row.querySelector('[data-thbox]');
+      if (box.style.display === 'block') { box.style.display = 'none'; return; }
+      const t = await window.api.call('wa:thread', row.dataset.th); if (!t.ok) { toast('تعذّر: ' + t.error); return; }
+      const fm = (ts) => { const d = new Date(ts < 1e12 ? ts * 1000 : ts); return d.toLocaleString('ar-SA', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'numeric' }); };
+      box.innerHTML = `<div style="max-height:320px;overflow:auto;margin-top:6px;display:flex;flex-direction:column;gap:5px">${t.data.messages.map((m) => `<div style="align-self:${m.dir === 'in' ? 'flex-start' : 'flex-end'};max-width:88%;background:${m.dir === 'in' ? 'rgba(255,255,255,.08)' : 'rgba(34,197,94,.22)'};padding:5px 9px;border-radius:9px;white-space:pre-wrap">${esc2(m.text)}<div class="muted" style="font-size:10px">${m.dir === 'in' ? 'العميل' : 'نحن'} · ${esc2(fm(m.ts))}</div></div>`).join('')}</div>`;
+      box.style.display = 'block'; const sc = box.firstElementChild; sc.scrollTop = sc.scrollHeight;
+    }; });
+    const all = r.data.filter((c) => c.windowOpen);
+    if (all.length) {
+      el.insertAdjacentHTML('beforeend', `<div class="prop" style="border-style:solid"><b>✉️ رسالة جديدة لعميل</b><select id="waMsgTo" style="width:100%;margin-top:6px">${r.data.map((c) => `<option value="${esc2(c.phone)}"${c.windowOpen ? '' : ' disabled'}>${esc2(c.name || '+' + c.phone)}${c.windowOpen ? '' : ' (مغلقة: مرّت 24 ساعة)'}</option>`).join('')}</select><textarea id="waMsgTxt" rows="3" style="width:100%;margin-top:6px" placeholder="اكتب رسالتك…"></textarea><div class="row"><button id="waMsgGo">إرسال للعميل</button></div><div class="muted">تُرسل كما هي، ويتوقف الرد التلقائي لهذا العميل. متاحة خلال 24 ساعة من آخر رسالة له.</div></div>`);
+      const go = el.querySelector('#waMsgGo');
+      go.onclick = () => withBusy(go, async () => {
+        const t = el.querySelector('#waMsgTxt').value.trim(), ph = el.querySelector('#waMsgTo').value; if (!t) return;
+        await window.api.call('wa:draft', ph, t);
+        if (!confirm('إرسال هذه الرسالة للعميل على واتساب؟')) return;
+        const x = await window.api.call('wa:owner', ph, t); toast(x.ok ? 'أُرسلت الرسالة ✅' : 'تعذّر: ' + x.error); await refresh(); loadWa(el);
+      });
+    }
     el.querySelectorAll('[data-wa-text]').forEach((t) => { let h; t.oninput = () => { clearTimeout(h); h = setTimeout(() => window.api.call('wa:draft', t.dataset.waText, t.value), 500); }; });
     el.querySelectorAll('[data-wa-mk]').forEach((b) => { b.onclick = () => withBusy(b, async () => { const r = await window.api.call('wa:mkdraft', b.dataset.waMk); if (!r.ok) toast('تعذّر: ' + r.error); await refresh(); loadWa(el); }); });
     el.querySelectorAll('[data-wa-no]').forEach((b) => { b.onclick = async () => { await call('wa:ignore', b.dataset.waNo); await refresh(); loadWa(el); }; });
