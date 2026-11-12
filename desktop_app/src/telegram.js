@@ -15,7 +15,7 @@ const same = (a, b) => { const x = Buffer.from(String(a)), y = Buffer.from(Strin
 
 const WA_PHONE_RE = /^\d{6,20}$/;
 
-function create({ store, dataDir, commander, payments, whatsapp, log, api: apiOverride }) {
+function create({ store, dataDir, commander, payments, whatsapp, agentApi, log, api: apiOverride }) {
   let running = false, offset = 0, pairing = null, username = '', failures = 0, waEditing = null, waMsg = null;
   const stamps = [], history = [];
   const cfg = () => store.get().telegram;
@@ -57,6 +57,21 @@ function create({ store, dataDir, commander, payments, whatsapp, log, api: apiOv
     if (!j.ok) throw new Error(redact(j.description || 'تعذّر إرسال الملف'));
   }
 
+  async function notifyPost(post, imagePath) { // بطاقة موافقة النشر: صورة + كابشن + أزرار
+    const c = cfg(); if (!c.chatId || !c.token) return;
+    const cap = '📝 بوست جاهز للنشر (لن يُنشر إلا بموافقتك)' + String.fromCharCode(10, 10) + String(post.caption || '').slice(0, 850);
+    const kb = { inline_keyboard: [[{ text: '✅ انشر الآن', callback_data: `pbok:${post.id}` }, { text: '❌ ارفض', callback_data: `pbno:${post.id}` }]] };
+    if (apiOverride) return apiOverride('sendPhoto', { chat_id: c.chatId, caption: cap, reply_markup: kb });
+    const fd = new FormData();
+    fd.append('chat_id', String(c.chatId)); fd.append('caption', cap); fd.append('reply_markup', JSON.stringify(kb));
+    const buf = require('fs').readFileSync(imagePath), ext = require('path').extname(imagePath).toLowerCase();
+    fd.append('photo', new Blob([buf], { type: ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg' }), 'post' + ext);
+    try {
+      const res = await fetch(`${API}/bot${c.token}/sendPhoto`, { method: 'POST', body: fd, signal: AbortSignal.timeout(90000), redirect: 'error' });
+      const j = await res.json().catch(() => ({}));
+      if (!j.ok) throw new Error(j.description || 'تعذّر إرسال الصورة');
+    } catch (e) { await send(c.chatId, cap + String.fromCharCode(10, 10) + '(تعذّر إرفاق الصورة: ' + redact(e.message).slice(0, 100) + ')', kb).catch(() => {}); }
+  }
   const send = (chatId, text, markup) => api('sendMessage', { chat_id: chatId, text: String(text).slice(0, 3800), ...(markup ? { reply_markup: markup } : {}) });
   const edit = (chatId, messageId, text, markup) => api('editMessageText', { chat_id: chatId, message_id: messageId, text: String(text).slice(0, 3800), reply_markup: markup || { inline_keyboard: [] } });
 
@@ -264,6 +279,18 @@ function create({ store, dataDir, commander, payments, whatsapp, log, api: apiOv
     const c = cfg();
     if (!q.message || !c.chatId || q.message.chat.id !== c.chatId || (q.from && q.from.id !== c.chatId)) return; // حسابك فقط
     const [act, id, inv] = String(q.data || '').split(':');
+    if ((act === 'pbok' || act === 'pbno') && UUID_RE.test(id || '') && agentApi) {
+      let nt = '';
+      try {
+        const post = store.get().posts.find((x) => x.id === id);
+        if (!post || post.status !== 'pending_review') nt = 'هذا البوست لم يعد بانتظار الموافقة';
+        else if (act === 'pbno') { post.status = 'rejected'; store.save(); nt = 'رُفض البوست'; }
+        else { const r = await agentApi.publishPost(id); nt = r.status === 'published' ? 'نُشر ✅' : 'فشل النشر، راجع سراج'; }
+      } catch (e) { nt = redact(e.message).slice(0, 150); }
+      await api('editMessageReplyMarkup', { chat_id: q.message.chat.id, message_id: q.message.message_id, reply_markup: { inline_keyboard: [] } }).catch(() => {});
+      await api('answerCallbackQuery', { callback_query_id: q.id, text: nt }).catch(() => {});
+      return;
+    }
     if (whatsapp && ['wok', 'wed', 'wno', 'wtk', 'wbk', 'wmsg'].includes(act)) return onWaCallback(q, act, id);
     const chatId = q.message.chat.id, mid = q.message.message_id;
     if (!['sel', 'ok', 'yes', 'back', 'no'].includes(act) || !UUID_RE.test(id || '')) { await api('answerCallbackQuery', { callback_query_id: q.id }); return; }
@@ -328,7 +355,8 @@ function create({ store, dataDir, commander, payments, whatsapp, log, api: apiOv
   function disconnect() { stop(); pairing = null; Object.assign(cfg(), { token: '', chatId: 0, username: '' }); store.save(); }
   const status = () => ({ hasToken: !!cfg().token, paired: !!cfg().chatId, username: cfg().username || '', running, pairing: !!(pairing && Date.now() < pairing.expires) });
 
-  return { start, stop, connect, startPairing, disconnect, status, _onUpdate: onUpdate };
+  async function notifyText(t) { const c = cfg(); if (!c.chatId || !c.token) return; await send(c.chatId, String(t).slice(0, 3500)).catch(() => {}); }
+  return { notifyPost, notifyText, start, stop, connect, startPairing, disconnect, status, _onUpdate: onUpdate };
 }
 
 module.exports = { create, TOKEN_RE };

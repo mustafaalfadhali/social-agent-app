@@ -103,7 +103,7 @@ function renderAccounts() {
 function fillSettings() {
   const s = state.settings;
   $('sName').value = s.businessName; $('sDesc').value = s.businessDescription;
-  $('sTone').value = s.tone; $('sLang').value = s.language; $('sTimes').value = s.dailyTimes;
+  $('sTone').value = s.tone; $('sLang').value = s.language; $('sTimes').value = s.dailyTimes; $('sEvery').value = s.everyDays || 2;
   $('pFacebook').checked = s.autoPlatforms.facebook; $('pInstagram').checked = s.autoPlatforms.instagram;
   $('pTiktok').checked = s.autoPlatforms.tiktok; $('sReview').checked = s.reviewBeforePublish;
   $('sAutoStart').checked = s.autoStart; $('sClaudePath').value = s.claudePath; $('sTtPrivacy').value = s.tiktokPrivacy;
@@ -200,7 +200,7 @@ $('btnTtDisconnect').onclick = async () => { await call('tiktok:disconnect'); aw
 $('btnSaveSettings').onclick = async () => {
   await call('settings:save', {
     businessName: $('sName').value, businessDescription: $('sDesc').value, tone: $('sTone').value,
-    language: $('sLang').value, dailyTimes: $('sTimes').value,
+    language: $('sLang').value, dailyTimes: $('sTimes').value, everyDays: Number($('sEvery').value) || 2,
     autoPlatforms: { facebook: $('pFacebook').checked, instagram: $('pInstagram').checked, tiktok: $('pTiktok').checked },
     reviewBeforePublish: $('sReview').checked, autoStart: $('sAutoStart').checked,
     claudePath: $('sClaudePath').value.trim(), tiktokPrivacy: $('sTtPrivacy').value,

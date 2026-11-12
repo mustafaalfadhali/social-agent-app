@@ -205,6 +205,7 @@ function registerIpc() {
     if (!s || typeof s !== 'object') throw new Error('مدخل غير صالح');
     const d = store.get(), clean = {};
     for (const k of ['businessName', 'businessDescription', 'tone', 'language', 'dailyTimes', 'claudePath']) if (k in s) clean[k] = sec.str(s[k], k === 'businessDescription' ? 3000 : 300);
+    if ('everyDays' in s) { const n = Math.round(Number(s.everyDays)); if (!(n >= 1 && n <= 14)) throw new Error('عدد الأيام بين 1 و14'); clean.everyDays = n; }
     for (const k of ['reviewBeforePublish', 'autoStart']) if (k in s) { if (!sec.bool(s[k])) throw new Error('مدخل غير صالح'); clean[k] = s[k]; }
     if ('tiktokPrivacy' in s) { if (!['SELF_ONLY', 'FOLLOWER_OF_CREATOR', 'MUTUAL_FOLLOW_FRIENDS', 'PUBLIC_TO_EVERYONE'].includes(s.tiktokPrivacy)) throw new Error('خصوصية غير صالحة'); clean.tiktokPrivacy = s.tiktokPrivacy; }
     const ap = {};
@@ -258,7 +259,7 @@ function registerIpc() {
     if (p) { p.status = 'rejected'; p.feedback = sec.str(feedback || '', 1000); store.save(); }
   });
   handle('post:delete', (id) => { sec.uuid(id); const d = store.get(); d.posts = d.posts.filter((p) => p.id !== id); store.save(); });
-  handle('agent:runNow', () => agent.dailyRun());
+  handle('agent:runNow', () => agent.dailyRun({ force: true }));
 
   handle('meta:saveApp', (f) => {
     const m = store.get().meta;
@@ -295,14 +296,34 @@ app.whenReady().then(() => {
   payments.cleanup(dataDir);
   try { for (const f of fs.readdirSync(docsDir)) { const p = path.join(docsDir, f); if (Date.now() - fs.statSync(p).mtimeMs > 7 * 86400000) fs.rmSync(p, { force: true }); } } catch { /* لا مجلد بعد */ }
   wa = require('./whatsapp').create({ store, claude: require('./claude'), log: (m) => store.log(m) });
-  tg = telegramBot.create({ store, dataDir, commander, payments, whatsapp: wa, log: (m) => store.log(m) });
+  tg = telegramBot.create({ store, dataDir, commander, payments, whatsapp: wa, agentApi: agent, log: (m) => store.log(m) });
   tg.start();
+  agent.setNotifier((t) => tg.notifyText(t));
+  agent.setReviewNotifier((p, img) => tg.notifyPost(p, img).catch((e) => store.log('تيليجرام: ' + String(e.message).slice(0, 100))));
   wa.start(); // يسحب رسائل واتساب كل 30 ثانية إذا كان الجسر مضبوطاً
   contracts.init({ desktop: app.getPath('desktop'), userData: app.getPath('userData'), log: (m) => store.log(m) });
   createWindow(!process.argv.includes('--hidden'));
   createTray();
   applyAutoStart();
   agent.startScheduler();
+  const dropDir = path.join(mediaDir, 'تصاميم جديدة للنشر'), doneDir = path.join(dropDir, 'مستوردة');
+  fs.mkdirSync(doneDir, { recursive: true });
+  const importDrop = () => { // أي صورة تُوضع في مجلد «تصاميم جديدة للنشر» تدخل مكتبة الصور وتُنشر تلقائياً بالترتيب
+    try {
+      const d = store.get(); let n = 0;
+      for (const f of fs.readdirSync(dropDir)) {
+        const src = path.join(dropDir, f), ext = path.extname(f).toLowerCase();
+        if (!['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) continue;
+        const st = fs.statSync(src); if (!st.isFile() || st.size > 25 * 1024 * 1024 || Date.now() - st.mtimeMs < 5000) continue;
+        const id = crypto.randomUUID(), file = id + ext;
+        fs.copyFileSync(src, path.join(mediaDir, file));
+        d.media.push({ id, file, name: f, addedAt: new Date().toISOString(), usedAt: null }); n++;
+        fs.renameSync(src, path.join(doneDir, Date.now() + '_' + f));
+      }
+      if (n) { store.save(); store.log(`🖼️ استُوردت ${n} صورة من مجلد «تصاميم جديدة للنشر»`); }
+    } catch (e) { store.log('⚠️ استيراد مجلد التصاميم: ' + String(e.message).slice(0, 100)); }
+  };
+  importDrop(); setInterval(importDrop, 60000);
   if (TEST_DIR && process.argv.includes('--smoke')) require('./smoke')(win, store, dataDir);
 });
 

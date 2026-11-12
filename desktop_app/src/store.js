@@ -25,6 +25,7 @@ const DEFAULTS = {
     tone: 'ودّي واحترافي',
     language: 'العربية',
     dailyTimes: '10:00',
+    everyDays: 2,
     autoPlatforms: { facebook: true, instagram: true, tiktok: false },
     reviewBeforePublish: true,   // الافتراضي الآمن: مراجعة المالك قبل أي نشر علني
     autoStart: true,

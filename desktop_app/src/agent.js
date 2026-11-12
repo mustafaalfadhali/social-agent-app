@@ -74,26 +74,38 @@ async function publishPost(postId) {
   return post;
 }
 
-async function dailyRun() {
+let reviewNotifier = null;
+function setReviewNotifier(fn) { reviewNotifier = fn; }
+let notifier = () => {};
+function setNotifier(fn) { notifier = fn || (() => {}); }
+const note = (t) => { try { Promise.resolve(notifier(t)).catch(() => {}); } catch {} };
+
+async function dailyRun(opts = {}) {
   if (busy) return;
   busy = true;
   try {
     const data = store.get();
     const platforms = enabledPlatforms(data.settings);
+    const gap = Math.max(1, Number(data.settings.everyDays) || 1);
+    if (!opts.force && data.lastDailyAt && gap > 1 && Date.now() - Date.parse(data.lastDailyAt) < (gap - 0.5) * 86400000) return;
     if (!platforms.length) return store.log('⚠️ لم تُفعَّل أي منصة للنشر التلقائي');
     const next = data.media.filter((m) => !m.usedAt).sort((a, b) => a.addedAt.localeCompare(b.addedAt))[0];
-    if (!next) return store.log('⚠️ لا توجد صور جديدة في المكتبة للنشر اليومي');
+    if (!next) { note('📣 النشر: لا توجد صور جديدة في «مكتبة الصور». أضف صوراً ليستمر النشر.'); return store.log('⚠️ لا توجد صور جديدة في المكتبة للنشر اليومي'); }
     store.log('🤖 بدء التوليد اليومي…');
     const post = await createPost(next.id, platforms);
+    data.lastDailyAt = new Date().toISOString();
     if (data.settings.reviewBeforePublish) {
       post.status = 'pending_review';
       store.save();
       store.log('📝 منشور جديد بانتظار مراجعتك');
+      const m0 = data.media.find((x) => x.id === post.mediaId);
+      if (reviewNotifier && m0) reviewNotifier(post, path.join(mediaDir, path.basename(m0.file))); else note('📝 منشور جديد بانتظار مراجعتك في سراج (المنشورات):' + String.fromCharCode(10, 10) + String(post.caption).slice(0, 700));
     } else {
       await publishPost(post.id);
+      note((post.status === 'published' ? '✅ نُشر بوست جديد على ' + post.platforms.join(' + ') : '❌ فشل نشر البوست: ' + Object.values(post.results || {}).map((r) => r.error).filter(Boolean).join(' | ').slice(0, 300)) + String.fromCharCode(10, 10) + String(post.caption).slice(0, 700));
     }
   } catch (e) {
-    store.log('❌ التوليد اليومي فشل: ' + e.message);
+    store.log('❌ التوليد اليومي فشل: ' + e.message); note('❌ فشل توليد/نشر البوست: ' + String(e.message).slice(0, 200));
   } finally {
     busy = false;
   }
@@ -139,4 +151,4 @@ function startScheduler() {
   setTimeout(() => refreshStats().catch(() => {}), 60 * 1000);
 }
 
-module.exports = { isBusy: () => busy, setMediaDir, createPost, publishPost, dailyRun, startScheduler };
+module.exports = { setReviewNotifier, setNotifier, isBusy: () => busy, setMediaDir, createPost, publishPost, dailyRun, startScheduler };
