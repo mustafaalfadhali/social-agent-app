@@ -68,7 +68,7 @@ async function buildContext(d, text = '', history = []) {
   };
 }
 
-async function ask({ text, history = [] }, d, store) {
+async function ask({ text, history = [] }, d, store, wa) {
   const ctx = await buildContext(d, text, history);
   const prompt = [
     'أنت «مكتب سِراج»: فريق من ستة وكلاء لمؤسسة مكافحة حشرات في الرياض (النشر، العقود، المحاسبة، الزيارات، خدمة العملاء، التسويق).',
@@ -99,6 +99,15 @@ async function ask({ text, history = [] }, d, store) {
     '',
     `أعد فقط JSON بدون أي نص آخر: {"agent": "واحد من ${AGENTS.join(' | ')}", "reply": "...", "proposal": null أو {"type": "post|contract|campaign", "summary": "..."}, "action": null أو {"type": "invoice_pdf|statement_pdf", ...}, "accounting": null أو {...}}`,
   ].filter((x) => x !== '').join('\n');
+  if (wa && wa.list && wa.send && text.length <= 40 && /^(تمام\s*)?(موافق|وافق|اعتمد|اعتمدها|ارسل|أرسل|ارسلها|أرسلها|ابعث|ابعثها)/.test(text.trim())) {
+    const pend = wa.list().filter((c) => c.status === 'draft' && c.draft && c.draft.text && c.windowOpen);
+    if (pend.length === 1) {
+      const c = pend[0];
+      try { await wa.send(c.phone); return { agent: 'خدمة العملاء', reply: `✅ أُرسل الرد إلى ${c.name || '+' + c.phone}.`, proposal: null, action: null, proposals: [] }; }
+      catch (e) { return { agent: 'خدمة العملاء', reply: 'تعذّر الإرسال: ' + String(e.message).slice(0, 150), proposal: null, action: null, proposals: [] }; }
+    }
+    if (pend.length > 1) return { agent: 'خدمة العملاء', reply: `عندي ${pend.length} مسودات منتظرة (${pend.map((c) => c.name || '+' + c.phone).join('، ')}). أرسلها من بطاقة تيليجرام أو من المكتب.`, proposal: null, action: null, proposals: [] };
+  }
   const raw = await claude.askText(prompt, d.settings);
   const j = claude.extractJson(raw);
   let action = null;

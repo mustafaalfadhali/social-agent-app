@@ -109,7 +109,7 @@ function registerIpc() {
       const r = await payments.propose({ file, name: path.basename(file) }, store.get(), store);
       return { agent: 'المحاسبة', reply: r.reply, proposal: r.proposal };
     }
-    const r = await commander.ask({ text: sec.str(p.text, 2000), history }, store.get(), store);
+    const r = await commander.ask({ text: sec.str(p.text, 2000), history }, store.get(), store, wa);
     if (r.action) {
       try {
         const f = await documents.fulfill(r.action, store.get(), path.join(dataDir, 'tmp'));

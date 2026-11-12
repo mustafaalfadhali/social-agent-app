@@ -220,7 +220,7 @@ function create({ store, dataDir, commander, payments, whatsapp, log, api: apiOv
       }
     }
     history.push({ role: 'user', text }); if (history.length > 8) history.shift();
-    const r = await commander.ask({ text, history: history.slice(0, -1) }, store.get(), store);
+    const r = await commander.ask({ text, history: history.slice(0, -1) }, store.get(), store, whatsapp);
     history.push({ role: 'office', text: r.reply }); if (history.length > 8) history.shift();
     if (r.action) { // طلب مستند: نرسل الملف بوصف مكتوب من بياناته الفعلية (لا من نص النموذج)
       try {
