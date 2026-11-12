@@ -306,22 +306,24 @@ app.whenReady().then(() => {
   createTray();
   applyAutoStart();
   agent.startScheduler();
-  const dropDir = path.join(mediaDir, 'تصاميم جديدة للنشر'), doneDir = path.join(dropDir, 'مستوردة');
-  fs.mkdirSync(doneDir, { recursive: true });
-  const importDrop = () => { // أي صورة تُوضع في مجلد «تصاميم جديدة للنشر» تدخل مكتبة الصور وتُنشر تلقائياً بالترتيب
-    try {
-      const d = store.get(); let n = 0;
-      for (const f of fs.readdirSync(dropDir)) {
-        const src = path.join(dropDir, f), ext = path.extname(f).toLowerCase();
-        if (!['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) continue;
-        const st = fs.statSync(src); if (!st.isFile() || st.size > 25 * 1024 * 1024 || Date.now() - st.mtimeMs < 5000) continue;
-        const id = crypto.randomUUID(), file = id + ext;
-        fs.copyFileSync(src, path.join(mediaDir, file));
-        d.media.push({ id, file, name: f, addedAt: new Date().toISOString(), usedAt: null }); n++;
-        fs.renameSync(src, path.join(doneDir, Date.now() + '_' + f));
-      }
-      if (n) { store.save(); store.log(`🖼️ استُوردت ${n} صورة من مجلد «تصاميم جديدة للنشر»`); }
-    } catch (e) { store.log('⚠️ استيراد مجلد التصاميم: ' + String(e.message).slice(0, 100)); }
+  const dropDirs = [path.join(mediaDir, 'تصاميم جديدة للنشر'), path.join(require('os').homedir(), 'Desktop', 'ميديا جديدة لشعلة الجزيرة', 'جاهزة للنشر')];
+  for (const dd of dropDirs) { try { fs.mkdirSync(path.join(dd, 'مستوردة'), { recursive: true }); } catch {} }
+  const importDrop = () => { // أي صورة تُوضع في مجلد «تصاميم جديدة للنشر» تدخل مكتبة الصور وتُنشر بالترتيب
+    for (const dropDir of dropDirs) {
+      try {
+        const d = store.get(); let n = 0; const doneDir = path.join(dropDir, 'مستوردة');
+        for (const f of fs.readdirSync(dropDir)) {
+          const src = path.join(dropDir, f), ext = path.extname(f).toLowerCase();
+          if (!['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) continue;
+          const st = fs.statSync(src); if (!st.isFile() || st.size > 25 * 1024 * 1024 || Date.now() - st.mtimeMs < 5000) continue;
+          const id = crypto.randomUUID(), file = id + ext;
+          fs.copyFileSync(src, path.join(mediaDir, file));
+          d.media.push({ id, file, name: f, addedAt: new Date().toISOString(), usedAt: null }); n++;
+          fs.renameSync(src, path.join(doneDir, Date.now() + '_' + f));
+        }
+        if (n) { store.save(); store.log(`🖼️ استُوردت ${n} صورة من مجلد «تصاميم جديدة للنشر»`); }
+      } catch (e) { store.log('⚠️ استيراد مجلد التصاميم: ' + String(e.message).slice(0, 100)); }
+    }
   };
   importDrop(); setInterval(importDrop, 60000);
   if (TEST_DIR && process.argv.includes('--smoke')) require('./smoke')(win, store, dataDir);
