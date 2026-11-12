@@ -260,13 +260,15 @@ const Office = (() => {
     if (!r.ok) { el.innerHTML = `<p class="muted">⚠ ${esc2(r.error)}</p>`; return; }
     const open = r.data.filter((c) => c.status === 'draft' || c.status === 'new');
     el.innerHTML = open.map((c) => `<div class="prop"><b>${esc2(c.name || '+' + c.phone)}</b>${c.draft && c.draft.urgent ? ' 🔴 عاجل' : ''}${c.draft ? ' · ' + esc2(c.draft.category || '') : ''}<br><span class="muted">${esc2(c.last.slice(0, 160))}</span>` +
-      (c.draft ? `<textarea data-wa-text="${esc2(c.phone)}" rows="4" style="width:100%;margin-top:6px">${esc2(c.draft.text)}</textarea>${c.draft.needsHuman ? '<div class="muted">⚠ يحتاج نظرك (شكوى أو أمر حساس)</div>' : ''}${c.windowOpen ? '' : '<div class="muted">⏱ مرّت 24 ساعة: لا يمكن الرد الحر</div>'}<div class="row"><button data-wa-send="${esc2(c.phone)}"${c.windowOpen ? '' : ' disabled'}>إرسال</button><button class="ghost" data-wa-no="${esc2(c.phone)}">تجاهل</button></div>` : '<div class="muted">تُكتب المسودة…</div>') + '</div>').join('') || '<p class="muted">لا محادثات بانتظار رد.</p>';
+      (c.draft ? `<textarea data-wa-text="${esc2(c.phone)}" rows="4" style="width:100%;margin-top:6px">${esc2(c.draft.text)}</textarea>${c.draft.needsHuman ? '<div class="muted">⚠ يحتاج نظرك (شكوى أو أمر حساس)</div>' : ''}${c.windowOpen ? '' : '<div class="muted">⏱ مرّت 24 ساعة: لا يمكن الرد الحر</div>'}<div class="row"><button data-wa-send="${esc2(c.phone)}"${c.windowOpen ? '' : ' disabled'}>إرسال</button><button class="ghost" data-wa-no="${esc2(c.phone)}">تجاهل</button></div>` : `<div class="row"><button data-wa-mk="${esc2(c.phone)}">اكتب المسودة الآن</button><button class="ghost" data-wa-no="${esc2(c.phone)}">تجاهل</button></div>`) + '</div>').join('') || '<p class="muted">لا محادثات بانتظار رد.</p>';
     el.querySelectorAll('[data-wa-send]').forEach((b) => { b.onclick = () => withBusy(b, async () => {
       const phone = b.dataset.waSend, ta = el.querySelector(`[data-wa-text="${phone}"]`);
       await call('wa:draft', phone, ta.value);
       if (!confirm('إرسال هذا الرد إلى العميل على واتساب؟')) return;
       await call('wa:send', phone); toast('أُرسل الرد ✅'); await refresh(); loadWa(el);
     }); });
+    el.querySelectorAll('[data-wa-text]').forEach((t) => { let h; t.oninput = () => { clearTimeout(h); h = setTimeout(() => window.api.call('wa:draft', t.dataset.waText, t.value), 500); }; });
+    el.querySelectorAll('[data-wa-mk]').forEach((b) => { b.onclick = () => withBusy(b, async () => { const r = await window.api.call('wa:mkdraft', b.dataset.waMk); if (!r.ok) toast('تعذّر: ' + r.error); await refresh(); loadWa(el); }); });
     el.querySelectorAll('[data-wa-no]').forEach((b) => { b.onclick = async () => { await call('wa:ignore', b.dataset.waNo); await refresh(); loadWa(el); }; });
   }
 
@@ -298,7 +300,7 @@ const Office = (() => {
     agents = build(state, ct);
     layer.innerHTML = layerHtml(); bind();
     kpis(state, ct); draw();
-    if (selected !== null && drawer.classList.contains('open')) openDrawer(selected);
+    if (selected !== null && drawer.classList.contains('open') && !drawer.querySelector('textarea:focus')) openDrawer(selected);
   }
 
   setInterval(() => { frame++; if (agents.length) draw(); }, 500);

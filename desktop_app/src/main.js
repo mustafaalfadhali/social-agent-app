@@ -160,6 +160,7 @@ function registerIpc() {
   handle('wa:list', () => wa.list());
   handle('wa:poll', () => wa.poll());
   handle('wa:draft', (phone, text) => { wa.setDraft(sec.str(phone, 20), sec.str(text, 900)); return wa.list(); });
+  handle('wa:mkdraft', async (phone) => { const cv = await wa.makeDraft(sec.str(phone, 20)); await wa.deliver(cv); return wa.list(); });
   handle('wa:send', async (phone) => { await wa.send(sec.str(phone, 20)); return wa.list(); });
   handle('wa:ignore', (phone) => { wa.ignore(sec.str(phone, 20)); return wa.list(); });
   handle('wa:disconnect', () => { const c = store.get().wa; Object.assign(c, { pullToken: '', token: '', phoneId: '', convs: {}, seen: [] }); store.save(); });
