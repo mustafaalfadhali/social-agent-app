@@ -99,7 +99,7 @@ async function ask({ text, history = [] }, d, store, wa) {
     '',
     `أعد فقط JSON بدون أي نص آخر: {"agent": "واحد من ${AGENTS.join(' | ')}", "reply": "...", "proposal": null أو {"type": "post|contract|campaign", "summary": "..."}, "action": null أو {"type": "invoice_pdf|statement_pdf", ...}, "accounting": null أو {...}}`,
   ].filter((x) => x !== '').join('\n');
-  if (wa && wa.list && wa.send && text.length <= 40 && /^(تمام\s*)?(موافق|وافق|اعتمد|اعتمدها|ارسل|أرسل|ارسلها|أرسلها|ابعث|ابعثها)/.test(text.trim())) {
+  if (wa && wa.list && wa.send && text.length <= 40 && /(موافق|وافق|اعتمد|ارسل|أرسل|ابعث)/.test(text) && !/(لا\s|لاترسل|لا ترسل|ما ترسل|لا تبعث|إلغ|الغ)/.test(text)) {
     const pend = wa.list().filter((c) => c.status === 'draft' && c.draft && c.draft.text && c.windowOpen);
     if (pend.length === 1) {
       const c = pend[0];
