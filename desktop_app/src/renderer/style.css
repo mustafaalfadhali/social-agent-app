@@ -60,6 +60,7 @@ dialog::backdrop { background: rgba(0,0,0,.6); }
 .office-stage { position: relative; width: 100%; border-radius: 16px; overflow: hidden; border: 1px solid var(--line); background: #232c44; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
 #officeCanvas { display: block; width: 100%; height: auto; image-rendering: pixelated; }
 #officeLayer { position: absolute; inset: 0; }
+.office-web { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; filter: drop-shadow(0 0 4px rgba(45,212,191,.35)); }
 .ag { position: absolute; cursor: pointer; border-radius: 12px; }
 .ag .bub { position: absolute; left: 50%; top: 3%; transform: translateX(-50%); background: #f4f6fb; color: #1b2233; font-weight: 600; font-size: clamp(11px, 1.05vw, 15px); padding: 6px 12px; border-radius: 10px; white-space: nowrap; border-right: 4px solid var(--c); box-shadow: 0 4px 12px rgba(0,0,0,.35); pointer-events: none; }
 .ag .bub::after { content: ''; position: absolute; left: 50%; bottom: -6px; width: 10px; height: 10px; background: #f4f6fb; transform: translateX(-50%) rotate(45deg); }
@@ -176,3 +177,39 @@ nav button, nav button:hover:not(:disabled) { box-shadow: none; filter: none; }
 .mhub .hs b { color: #2dd4bf; font-size: 17px; }
 .map-note { text-align: center; color: var(--muted); font-size: 12px; margin: 10px 0 0; }
 @media (max-width: 1000px) { .map-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .mhub { grid-column: 1 / -1; grid-row: auto; order: -1; } }
+
+/* ---------- الخريطة: خيوط عنكبوت ونواة بلا شعار + كل شيء قابل للضغط ---------- */
+.mhub { display: none; }
+.morb { grid-column: 2; grid-row: 2; align-self: center; justify-self: center; position: relative; z-index: 2; width: 150px; height: 150px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; cursor: pointer; background: radial-gradient(circle at 35% 30%, #1f4f6b, #0a1a34 70%); border: 2px solid #2dd4bf; box-shadow: 0 0 40px rgba(45,212,191,.45), inset 0 0 30px rgba(45,212,191,.18); animation: morbpulse 3.2s ease-in-out infinite; }
+.morb > i { display: none; }
+.morb { width: 300px; height: 208px; border-radius: 16px; overflow: visible; animation: morbglow 4s ease-in-out infinite; }
+.morb .mfilm { position: absolute; inset: 0; border-radius: 14px; overflow: hidden; z-index: 0; background: #0a1224; }
+.morb .mfilm img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; animation: morbken 18s ease-in-out infinite alternate; filter: contrast(1.08) saturate(1.12); }
+.morb .mfilm u { position: absolute; inset: 0; pointer-events: none; text-decoration: none; }
+.morb .mvig { background: radial-gradient(ellipse at center, transparent 45%, rgba(3,8,20,.75) 100%), linear-gradient(#000 0 7%, transparent 7% 93%, #000 93%); }
+.morb .msweep { background: linear-gradient(105deg, transparent 38%, rgba(255,240,200,.38) 50%, transparent 62%); transform: translateX(-120%); animation: morbsweep 6s ease-in-out infinite; mix-blend-mode: screen; }
+.morb .mdust { background-image: radial-gradient(circle, rgba(255,215,130,.95) 0 1.4px, transparent 2px), radial-gradient(circle, rgba(255,255,255,.8) 0 1px, transparent 1.6px); background-size: 70px 90px, 110px 70px; background-position: 0 0, 30px 20px; animation: morbdust 9s linear infinite; opacity: .7; mix-blend-mode: screen; }
+.morb .mcap { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; display: flex; flex-direction: row; gap: 8px; align-items: baseline; justify-content: center; padding: 14px 0 6px; border-radius: 0 0 14px 14px; background: linear-gradient(transparent, rgba(5,15,30,.9)); pointer-events: none; }
+.morb .mcap b { font-size: 20px; }
+.morb .mcap span { font-size: 12px; margin: 0; }
+@keyframes morbken { from { transform: scale(1.02) translate(0, 0); } to { transform: scale(1.14) translate(-2.5%, -2%); } }
+@keyframes morbsweep { 0%, 55% { transform: translateX(-120%); } 85%, 100% { transform: translateX(120%); } }
+@keyframes morbdust { from { background-position: 0 0, 30px 20px; } to { background-position: 40px -180px, -20px -140px; } }
+@keyframes morbglow { 0%, 100% { box-shadow: 0 0 30px rgba(212,175,55,.35), 0 0 60px rgba(45,212,191,.2); } 50% { box-shadow: 0 0 46px rgba(212,175,55,.6), 0 0 90px rgba(45,212,191,.35); } }
+.morb i { position: absolute; inset: -14px; border-radius: 50%; border: 1px dashed rgba(45,212,191,.45); animation: morbspin 24s linear infinite; }
+.morb b { font-size: 38px; line-height: 1; color: #2dd4bf; font-weight: 900; }
+.morb span { font-size: 13px; color: #cfe6f2; margin-top: 2px; }
+.morb small { font-size: 11px; color: var(--muted); margin-top: 1px; }
+.morb:hover { box-shadow: 0 0 60px rgba(45,212,191,.7); }
+@keyframes morbpulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.045); } }
+@keyframes morbspin { to { transform: rotate(360deg); } }
+.mflow { animation: mflowmove linear infinite alternate; }
+@keyframes mflowmove { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -58; } }
+.map-lines { filter: drop-shadow(0 0 3px rgba(96,165,250,.35)); }
+.mrow, .mclick, .mhd { cursor: pointer; }
+.mrow { border-radius: 8px; padding: 3px 6px; margin: 0 -6px; transition: background .15s; }
+.mrow:hover, .mclick:hover { background: rgba(255,255,255,.06); }
+.mrow.soon { opacity: .75; }
+.mcard { transition: transform .15s, box-shadow .15s; }
+.mcard:hover { transform: translateY(-2px); }
+@media (max-width: 1000px) { .morb { grid-column: 1 / -1; grid-row: auto; order: -1; } }

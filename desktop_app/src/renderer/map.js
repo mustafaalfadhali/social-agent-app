@@ -37,25 +37,39 @@
   function cardHtml(m) {
     const ag = m.ag.map(([label, s, key]) => {
       const tog = key ? `<button class="mtg ${s === 'on' ? 'on' : ''} live" data-key="${key}" title="تشغيل / إيقاف"></button>` : `<span class="mtg ${s === 'on' ? 'on' : ''}"></span>`;
-      return `<li>${tog}<span>${esc(label)}</span>${s === 'soon' ? '<span class="msoon">قريباً</span>' : ''}</li>`;
+      return `<li class="mrow ${s}" data-go="${GO[m.n]}" data-state="${s}" data-label="${esc(label)}">${tog}<span>${esc(label)}</span>${s === 'soon' ? '<span class="msoon">قريباً</span>' : ''}</li>`;
     }).join('');
-    return `<div class="mcard" style="--c:${m.c}" data-n="${m.n}"><div class="mhd" data-go="${GO[m.n]}"><span class="mnum">0${m.n}</span><b>${esc(m.t)}</b><i class="mtag">${esc(m.tag)}</i></div><div class="mkpi"><big>${esc(m.k[0])}</big><span>${esc(m.k[1])}</span></div><ul class="mag">${ag}</ul></div>`;
+    return `<div class="mcard" style="--c:${m.c}" data-n="${m.n}"><div class="mhd" data-go="${GO[m.n]}"><span class="mnum">0${m.n}</span><b>${esc(m.t)}</b><i class="mtag">${esc(m.tag)}</i></div><div class="mkpi mclick" data-go="${GO[m.n]}"><big>${esc(m.k[0])}</big><span>${esc(m.k[1])}</span></div><ul class="mag">${ag}</ul></div>`;
   }
 
+  const NS = 'http://www.w3.org/2000/svg';
+  const mk = (tag, attrs) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; };
+  // خيوط عنكبوت: حبال منحنية من النواة إلى كل وكيل، وحلقة تربط الوكلاء بعضهم ببعض، وعليها نبضات تذهب وتعود
   function drawLines() {
     let svg = grid.querySelector('.map-lines');
-    if (!svg) { svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('class', 'map-lines'); grid.prepend(svg); }
+    if (!svg) { svg = mk('svg', { class: 'map-lines' }); grid.prepend(svg); }
     svg.innerHTML = '';
-    const hub = grid.querySelector('.mhub'); if (!hub) return;
-    const g = grid.getBoundingClientRect(), h = hub.getBoundingClientRect();
-    const hx = h.left - g.left + h.width / 2, hy = h.top - g.top + h.height / 2;
-    grid.querySelectorAll('.mcard').forEach((c) => {
-      const r = c.getBoundingClientRect(), col = getComputedStyle(c).getPropertyValue('--c').trim() || '#60a5fa';
-      const l = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-      l.setAttribute('x1', hx); l.setAttribute('y1', hy); l.setAttribute('x2', r.left - g.left + r.width / 2); l.setAttribute('y2', r.top - g.top + r.height / 2);
-      l.setAttribute('stroke', col); l.setAttribute('stroke-opacity', '.5'); l.setAttribute('stroke-width', '2'); l.setAttribute('stroke-dasharray', '2 8'); l.setAttribute('stroke-linecap', 'round');
-      svg.appendChild(l);
+    const orb = grid.querySelector('.morb'); if (!orb) return;
+    const g = grid.getBoundingClientRect(), o = orb.getBoundingClientRect();
+    svg.setAttribute('viewBox', `0 0 ${g.width} ${g.height}`);
+    const ox = o.left - g.left + o.width / 2, oy = o.top - g.top + o.height / 2;
+    const nodes = [...grid.querySelectorAll('.mcard')].map((c) => {
+      const r = c.getBoundingClientRect();
+      return { x: r.left - g.left + r.width / 2, y: r.top - g.top + r.height / 2, col: getComputedStyle(c).getPropertyValue('--c').trim() || '#60a5fa' };
     });
+    nodes.forEach((n) => { n.a = Math.atan2(n.y - oy, n.x - ox); });
+    const ring = [...nodes].sort((p, q) => p.a - q.a);
+    const rope = (x1, y1, x2, y2, sag, col, delay, dur) => {
+      const mx = (x1 + x2) / 2, my = (y1 + y2) / 2, dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy) || 1;
+      const cx = mx - (dy / len) * sag, cy = my + (dx / len) * sag, d = `M${x1},${y1} Q${cx},${cy} ${x2},${y2}`;
+      svg.appendChild(mk('path', { d, fill: 'none', stroke: col, 'stroke-opacity': '.3', 'stroke-width': '1.4', 'stroke-linecap': 'round' }));
+      svg.appendChild(mk('path', { d, fill: 'none', stroke: col, 'stroke-opacity': '.9', 'stroke-width': '1.8', 'stroke-linecap': 'round', 'stroke-dasharray': '3 26', class: 'mflow', style: `animation-delay:${delay}s;animation-duration:${dur}s` }));
+      const dot = mk('circle', { r: '3.2', fill: col, opacity: '.95' });
+      dot.appendChild(mk('animateMotion', { path: d, dur: (dur * 1.6) + 's', begin: delay + 's', repeatCount: 'indefinite', keyPoints: '0;1;0', keyTimes: '0;.5;1', calcMode: 'linear' }));
+      svg.appendChild(dot);
+    };
+    nodes.forEach((n, i) => rope(ox, oy, n.x, n.y, (i % 2 ? 1 : -1) * 26, n.col, (i * 0.37) % 3, 3.2 + (i % 3) * 0.6));
+    ring.forEach((n, i) => { const m = ring[(i + 1) % ring.length]; rope(n.x, n.y, m.x, m.y, 34, n.col, (i * 0.5) % 4, 4 + (i % 2)); });
   }
 
   function render() {
@@ -64,8 +78,17 @@
     const live = cards.reduce((n, m) => n + m.ag.filter((a) => a[1] === 'on').length, 0);
     const soonN = cards.reduce((n, m) => n + m.ag.filter((a) => a[1] === 'soon').length, 0);
     grid.innerHTML = cards.map(cardHtml).join('') +
-      `<div class="mhub"><img src="logo-approved.jpg" alt="شعلة الجزيرة"><div class="ht">سِراج</div><div class="hs"><div><b>${num(live)}</b> وكيلاً يعمل</div><div><b>${num(soonN)}</b> قريباً</div></div></div>`;
-    grid.querySelectorAll('.mhd').forEach((h) => { h.onclick = () => { const b = document.querySelector(`nav button[data-tab="${h.dataset.go}"]`); if (b) b.click(); }; });
+      `<div class="morb" data-go="office" title="افتح المكتب"><i></i><div class="mfilm"><img src="center-art.webp" alt=""><u class="mdust"></u><u class="msweep"></u><u class="mvig"></u></div><div class="mcap"><b>${num(live)}</b><span>وكيلاً يعمل</span><small>${num(soonN)} قريباً</small></div></div>`;
+    const go = (tab) => { const b = document.querySelector(`nav button[data-tab="${tab}"]`); if (b) b.click(); };
+    grid.querySelectorAll('[data-go]').forEach((h) => {
+      h.onclick = (e) => {
+        if (e.target.closest('.mtg.live')) return;
+        const row = h.closest('.mrow');
+        if (row && row.dataset.state === 'soon') { if (typeof toast === 'function') toast(`«${row.dataset.label}» قيد التطوير`); return; }
+        if (row && typeof toast === 'function') toast(`${row.dataset.label}: ${row.dataset.state === 'on' ? 'مفعّل' : 'غير مفعّل'}`);
+        go(h.dataset.go);
+      };
+    });
     grid.querySelectorAll('.mtg.live').forEach((b) => { b.onclick = () => toggle(b.dataset.key, !b.classList.contains('on')); });
     requestAnimationFrame(drawLines);
   }

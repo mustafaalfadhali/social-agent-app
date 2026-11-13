@@ -131,8 +131,22 @@ const Office = (() => {
 
   // ---------- الطبقة التفاعلية (HTML) ----------
   const esc2 = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  // خيوط عنكبوت بين المكاتب (نفس تصميم الخريطة): حبال منحنية ونبضات تذهب وتعود
+  function webSvg() {
+    const pts = agents.map((a, i) => ({ x: POS[i][0], y: POS[i][1] + 40, col: a.color }));
+    const pairs = [];
+    pts.forEach((p, i) => { for (let j = i + 1; j < pts.length; j++) { const d = Math.hypot(p.x - pts[j].x, p.y - pts[j].y); if (d < 640) pairs.push([i, j]); } });
+    const out = pairs.map(([i, j], k) => {
+      const a = pts[i], b = pts[j], dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1, sag = (k % 2 ? 1 : -1) * 30;
+      const d = `M${a.x},${a.y} Q${(a.x + b.x) / 2 - dy / len * sag},${(a.y + b.y) / 2 + dx / len * sag} ${b.x},${b.y}`, del = (k * 0.43) % 3, dur = 3.2 + (k % 3) * 0.6;
+      return `<path d="${d}" fill="none" stroke="${a.col}" stroke-opacity=".28" stroke-width="1.6"/>` +
+        `<path d="${d}" fill="none" stroke="${a.col}" stroke-opacity=".9" stroke-width="2" stroke-dasharray="3 26" class="mflow" style="animation-delay:${del}s;animation-duration:${dur}s"/>` +
+        `<circle r="3.4" fill="${b.col}"><animateMotion path="${d}" dur="${dur * 1.6}s" begin="${del}s" repeatCount="indefinite" keyPoints="0;1;0" keyTimes="0;.5;1" calcMode="linear"/></circle>`;
+    }).join('');
+    return `<svg class="office-web" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${out}</svg>`;
+  }
   function layerHtml() {
-    return agents.map((a, i) => {
+    return webSvg() + agents.map((a, i) => {
       const [x, y] = POS[i];
       const L = ((x - 150) / W * 100).toFixed(2), T = ((y - 150) / H * 100).toFixed(2), Wd = (300 / W * 100).toFixed(2), Hd = (262 / H * 100).toFixed(2);
       return `<div class="ag" data-i="${i}" style="left:${L}%;top:${T}%;width:${Wd}%;height:${Hd}%;--c:${a.color}">
