@@ -257,17 +257,33 @@ function create({ store, dataDir, commander, payments, whatsapp, agentApi, log, 
         const cd = waCard(cv); await send(m.chat.id, cd.text, cd.keyboard); return;
       }
     }
+    const note = (rp) => { history.push({ role: 'user', text }, { role: 'office', text: rp }); while (history.length > 8) history.shift(); };
+    const lastOffice = [...history].reverse().find((h) => h.role === 'office');
+    const askedBefore = !!(lastOffice && /[؟?]\s*$/.test(lastOffice.text.trim()));
+    const t = text.trim().replace(/[.!؟?،,\s]+$/g, '');
+    // أوامر ومساعدة
+    if (/^(الاوامر|الأوامر|مساعدة|help|ايش تقدر|ماذا تستطيع|وش تقدر|قائمة)/i.test(t)) {
+      const hp = '«المكتب»\nأقدر أعمل:\n• المحاسبة: «فاتورة لـ… »، «سجّل دفعة نقدية على INV/…»، «وين الحوالة اللي تنتظر»، «الغي الحوالة»، «PDF فاتورة/كشف حساب …»\n• العقود: «العقود اللي تنتهي قريباً»\n• الزيارات: «كم باقي زيارات برجر هنش»\n• خدمة العملاء: «كم محادثة تنتظر رد»\n• النشر والتسويق: «اكتب منشور عن…»، «خطة محتوى الأسبوع»، «أداء الصفحة»\nوأرسل صورة حوالة وأجهّز لك بطاقة الموافقة.';
+      note(hp); await send(m.chat.id, hp); return;
+    }
+    // ردود قصيرة (نعم/لا/تمام/شكراً) بلا سؤال معلّق: نرد بدل «لا يوجد سياق»
+    if (!askedBefore && /^(نعم|ايوه|أيوه|ايوا|اي|أي|لا|لأ|تمام|اوكي|اوك|ok|okay|طيب|زين|ماشي|حاضر|شكرا|شكراً|مشكور|يعطيك العافية|كمل|خلاص|تم)$/i.test(t)) {
+      const ack = /^(لا|لأ|خلاص)$/.test(t) ? 'تمام، ألغيت. أي أمر ثاني؟' : /شكر|مشكور|العافية/.test(t) ? 'العفو 🌹 أي خدمة ثانية؟' : 'تمام 👍 أنا جاهز، اكتب لي الأمر التالي (أو «الاوامر» لقائمة ما أقدر عليه).';
+      note(ack); await send(m.chat.id, ack); return;
+    }
     // إلغاء الحوالات المعلقة (يحذف المقترح محلياً فقط، لا يلمس أودو)
-    if (/(حوال|دفع)/.test(text) && /(الغ|ألغ|احذف|امسح|ارفض|تجاهل)/.test(text)) {
+    if ((/(حوال|دفع)/.test(text) || /(حوال|بطاق|بانتظار|مقترح)/.test(lastOffice ? lastOffice.text : '')) && /(الغ|ألغ|احذف|امسح|ارفض|تجاهل)/.test(text)) {
       const pend = (store.get().proposals || []).filter((x) => (x.type === 'payment' || x.type === 'invoice') && x.status === 'pending');
       for (const p of pend) payments.reject(store, p.id);
-      await send(m.chat.id, pend.length ? `«المحاسبة»\n✅ أُلغي ${pend.length} مقترح معلق (لم يُسجَّل شيء في أودو).` : '«المحاسبة»\nلا توجد حوالات معلقة.');
+      const rp = pend.length ? `«المحاسبة»\n✅ أُلغي ${pend.length} مقترح معلق (لم يُسجَّل شيء في أودو).` : '«المحاسبة»\nلا توجد حوالات معلقة.';
+      note(rp); await send(m.chat.id, rp);
       return;
     }
     // سؤال عن حوالة/دفعة تنتظر الموافقة: نعيد إرسال بطاقاتها من البيانات الفعلية (لا من تخمين النموذج)
     if (/(حوال|دفع|فاتور)/.test(text) && /(تنتظر|معلق|بانتظار|طالع|اعرض|ارسل|أرسل|وين)/.test(text)) {
       const pend = (store.get().proposals || []).filter((x) => (x.type === 'payment' || x.type === 'invoice') && x.status === 'pending');
       if (pend.length) {
+        note(`عندي ${pend.length} بانتظار موافقتك (أرسلت بطاقاتها). ويمكنك قول «الغها» لإلغائها.`);
         await send(m.chat.id, `«المحاسبة»\nعندي ${pend.length} بانتظار موافقتك، أرسل بطاقاتها:`);
         for (const p of pend) { try { const cd = card(p); await send(m.chat.id, cd.text, cd.keyboard); } catch (e) { await send(m.chat.id, '⚠ تعذّر إرسال البطاقة، افتحها من المكتب: ' + redact(e.message).slice(0, 120)); } }
         return;
