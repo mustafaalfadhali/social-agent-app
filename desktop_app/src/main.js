@@ -322,6 +322,13 @@ app.whenReady().then(() => {
           fs.renameSync(src, path.join(doneDir, Date.now() + '_' + f));
         }
         if (n) { store.save(); store.log(`🖼️ استُوردت ${n} صورة من مجلد «تصاميم جديدة للنشر»`); }
+        const stopF = path.join(dropDir, '_توقف.txt'); // مهمة التصاميم تكتب سبب التوقف هنا فيصلك على تيليجرام
+        if (fs.existsSync(stopF)) {
+          const why = fs.readFileSync(stopF, 'utf8').slice(0, 500);
+          fs.renameSync(stopF, path.join(doneDir, Date.now() + '_توقف.txt'));
+          store.log('⚠️ مهمة التصاميم توقفت: ' + why.slice(0, 100));
+          if (tg && tg.notifyText) tg.notifyText('⚠️ مهمة التصاميم اليومية توقفت:' + String.fromCharCode(10) + why);
+        }
       } catch (e) { store.log('⚠️ استيراد مجلد التصاميم: ' + String(e.message).slice(0, 100)); }
     }
   };

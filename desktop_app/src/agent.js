@@ -89,6 +89,22 @@ async function dailyRun(opts = {}) {
     const gap = Math.max(1, Number(data.settings.everyDays) || 1);
     if (!opts.force && data.lastDailyAt && gap > 1 && Date.now() - Date.parse(data.lastDailyAt) < (gap - 0.5) * 86400000) return;
     if (!platforms.length) return store.log('⚠️ لم تُفعَّل أي منصة للنشر التلقائي');
+    // مسودات عالقة (صورها استُخدمت لكنها لم تُنشر): تُنشر أولاً بالترتيب حتى لا تتراكم
+    const stuck = data.posts.filter((p) => p.status === 'draft' && !(p.results && Object.keys(p.results).length) && data.media.some((m) => m.id === p.mediaId) && Date.now() - Date.parse(p.createdAt || 0) < 14 * 86400000)
+      .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))[0];
+    if (stuck) {
+      data.lastDailyAt = new Date().toISOString();
+      if (!stuck.platforms || !stuck.platforms.length) stuck.platforms = platforms;
+      if (data.settings.reviewBeforePublish) {
+        stuck.status = 'pending_review'; store.save();
+        const ms = data.media.find((x) => x.id === stuck.mediaId);
+        if (reviewNotifier && ms) reviewNotifier(stuck, path.join(mediaDir, path.basename(ms.file))); else note('📝 منشور بانتظار مراجعتك في سراج (المنشورات):' + String.fromCharCode(10, 10) + String(stuck.caption).slice(0, 700));
+      } else {
+        await publishPost(stuck.id);
+        note((stuck.status === 'published' ? '✅ نُشر بوست على ' + stuck.platforms.join(' + ') : '❌ فشل نشر البوست: ' + Object.values(stuck.results || {}).map((r) => r.error).filter(Boolean).join(' | ').slice(0, 300)) + String.fromCharCode(10, 10) + String(stuck.caption).slice(0, 700));
+      }
+      return;
+    }
     const next = data.media.filter((m) => !m.usedAt).sort((a, b) => a.addedAt.localeCompare(b.addedAt))[0];
     if (!next) { note('📣 النشر: لا توجد صور جديدة في «مكتبة الصور». أضف صوراً ليستمر النشر.'); return store.log('⚠️ لا توجد صور جديدة في المكتبة للنشر اليومي'); }
     store.log('🤖 بدء التوليد اليومي…');
