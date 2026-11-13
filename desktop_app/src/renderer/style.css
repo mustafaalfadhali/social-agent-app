@@ -145,3 +145,34 @@ nav button, nav button:hover:not(:disabled) { box-shadow: none; filter: none; }
 .pay-c { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 10px; margin-top: 6px; border: 1px solid var(--line); border-radius: 10px; }
 .pay-c.sel { border-color: var(--accent); background: rgba(245,165,36,.08); } .pay-c b { color: var(--accent); white-space: nowrap; }
 .pay .row { margin-top: 10px; }
+
+/* ---------- الخريطة ---------- */
+.map-head { text-align: center; margin-bottom: 14px; }
+.map-head h1 { margin: 0; font-size: 28px; }
+.map-head p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+.map-grid { position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; padding: 6px; }
+.map-lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
+.mcard, .mhub { position: relative; z-index: 1; }
+.mcard { --c: #60a5fa; background: linear-gradient(180deg, rgba(18,30,58,.92), rgba(10,18,36,.92)); border: 1.5px solid color-mix(in srgb, var(--c) 70%, transparent); border-radius: 18px; padding: 12px 16px; box-shadow: 0 0 22px color-mix(in srgb, var(--c) 18%, transparent), inset 0 0 30px color-mix(in srgb, var(--c) 5%, transparent); }
+.mhd { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.mnum { font: 700 12px/1 Consolas, monospace; color: #0b1020; background: var(--c); padding: 4px 7px; border-radius: 6px; }
+.mhd b { font-size: 19px; }
+.mtag { margin-inline-start: auto; font-style: normal; font-size: 11px; color: var(--c); border: 1px solid color-mix(in srgb, var(--c) 55%, transparent); padding: 2px 8px; border-radius: 14px; }
+.mkpi { display: flex; align-items: baseline; gap: 8px; margin: 6px 0 4px; }
+.mkpi big { font-size: 34px; font-weight: 900; color: var(--c); line-height: 1; }
+.mkpi span { font-size: 13px; color: var(--muted); }
+.mag { list-style: none; padding: 0; margin: 0; }
+.mag li { display: flex; align-items: center; gap: 8px; font-size: 14px; padding: 3px 0; }
+.mtg { width: 32px; height: 17px; border-radius: 11px; background: #273554; position: relative; flex: none; border: 0; padding: 0; cursor: default; }
+.mtg::after { content: ''; position: absolute; top: 2px; inset-inline-start: 2px; width: 13px; height: 13px; border-radius: 50%; background: #7f8db0; transition: .2s; }
+.mtg.on { background: color-mix(in srgb, var(--c) 80%, #000); }
+.mtg.on::after { inset-inline-start: 17px; background: #fff; }
+.mtg.live { cursor: pointer; box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 35%, transparent); }
+.msoon { margin-inline-start: auto; font-size: 11px; color: var(--muted); border: 1px dashed #51618a; padding: 0 7px; border-radius: 10px; }
+.mhub { grid-column: 2; grid-row: 2; align-self: center; justify-self: center; text-align: center; width: min(280px, 100%); background: radial-gradient(circle, #13254a, #0a1430); border: 2px solid #2dd4bf; border-radius: 24px; padding: 14px; box-shadow: 0 0 50px rgba(45,212,191,.3); }
+.mhub img { width: 100%; border-radius: 14px; box-shadow: 0 0 0 3px #fff; }
+.mhub .ht { font-size: 26px; font-weight: 900; margin-top: 8px; }
+.mhub .hs { font-size: 13px; color: var(--muted); margin-top: 2px; }
+.mhub .hs b { color: #2dd4bf; font-size: 17px; }
+.map-note { text-align: center; color: var(--muted); font-size: 12px; margin: 10px 0 0; }
+@media (max-width: 1000px) { .map-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .mhub { grid-column: 1 / -1; grid-row: auto; order: -1; } }
