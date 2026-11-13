@@ -257,6 +257,15 @@ function create({ store, dataDir, commander, payments, whatsapp, agentApi, log, 
         const cd = waCard(cv); await send(m.chat.id, cd.text, cd.keyboard); return;
       }
     }
+    // سؤال عن حوالة/دفعة تنتظر الموافقة: نعيد إرسال بطاقاتها من البيانات الفعلية (لا من تخمين النموذج)
+    if (/(حوال|دفع|فاتور)/.test(text) && /(تنتظر|معلق|بانتظار|طالع|اعرض|ارسل|أرسل|وين)/.test(text)) {
+      const pend = (store.get().proposals || []).filter((x) => (x.type === 'payment' || x.type === 'invoice') && x.status === 'pending');
+      if (pend.length) {
+        await send(m.chat.id, `«المحاسبة»\nعندي ${pend.length} بانتظار موافقتك، أرسل بطاقاتها:`);
+        for (const p of pend) { try { const cd = card(p); await send(m.chat.id, cd.text, cd.keyboard); } catch (e) { await send(m.chat.id, '⚠ تعذّر إرسال البطاقة، افتحها من المكتب: ' + redact(e.message).slice(0, 120)); } }
+        return;
+      }
+    }
     history.push({ role: 'user', text }); if (history.length > 8) history.shift();
     const r = await commander.ask({ text, history: history.slice(0, -1) }, store.get(), store, whatsapp);
     history.push({ role: 'office', text: r.reply }); if (history.length > 8) history.shift();
