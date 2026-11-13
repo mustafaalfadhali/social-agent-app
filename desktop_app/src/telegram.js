@@ -257,6 +257,13 @@ function create({ store, dataDir, commander, payments, whatsapp, agentApi, log, 
         const cd = waCard(cv); await send(m.chat.id, cd.text, cd.keyboard); return;
       }
     }
+    // إلغاء الحوالات المعلقة (يحذف المقترح محلياً فقط، لا يلمس أودو)
+    if (/(حوال|دفع)/.test(text) && /(الغ|ألغ|احذف|امسح|ارفض|تجاهل)/.test(text)) {
+      const pend = (store.get().proposals || []).filter((x) => (x.type === 'payment' || x.type === 'invoice') && x.status === 'pending');
+      for (const p of pend) payments.reject(store, p.id);
+      await send(m.chat.id, pend.length ? `«المحاسبة»\n✅ أُلغي ${pend.length} مقترح معلق (لم يُسجَّل شيء في أودو).` : '«المحاسبة»\nلا توجد حوالات معلقة.');
+      return;
+    }
     // سؤال عن حوالة/دفعة تنتظر الموافقة: نعيد إرسال بطاقاتها من البيانات الفعلية (لا من تخمين النموذج)
     if (/(حوال|دفع|فاتور)/.test(text) && /(تنتظر|معلق|بانتظار|طالع|اعرض|ارسل|أرسل|وين)/.test(text)) {
       const pend = (store.get().proposals || []).filter((x) => (x.type === 'payment' || x.type === 'invoice') && x.status === 'pending');
