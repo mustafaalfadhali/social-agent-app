@@ -245,6 +245,8 @@
     cmd.onsubmit = (e) => { e.preventDefault(); const i = document.getElementById('mapCmdInput'); const q = i.value.trim(); i.value = ''; ask(q); };
     cmd.querySelectorAll('[data-q]').forEach((a) => { a.onclick = () => ask(a.dataset.q); });
   }
+  const mob = document.getElementById('mapMobile');
+  if (mob) mob.onclick = () => window.api.call('mobile:dialog');
   window.SirajMap = { update };
   window.addEventListener('resize', () => requestAnimationFrame(drawLines));
   // نعلّق على Office.update الموجود، فتتحدث الخريطة كلما تحدثت البيانات

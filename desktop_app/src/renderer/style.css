@@ -354,3 +354,5 @@ main:has(#map.active) { padding: 14px 20px 12px; overflow: auto; }
 .neon .nchatf input { flex: 1; min-width: 0; background: rgba(10,16,44,.8); border: 1px solid color-mix(in srgb, var(--c) 50%, transparent); border-radius: 7px; color: #eaf1ff; font: inherit; font-size: 12.5px; padding: 6px 8px; outline: 0; }
 .neon .nchatf button { width: 32px; border-radius: 7px; border: 1px solid var(--c); background: color-mix(in srgb, var(--c) 22%, transparent); color: #fff; font-size: 16px; cursor: pointer; }
 .neon .nchatf button:disabled, .neon .nchatf input:disabled { opacity: .5; cursor: default; }
+.nmob { align-self: flex-start; margin-top: 2px; padding: 9px 16px; border-radius: 8px; border: 1px solid rgba(74,222,128,.6); background: rgba(74,222,128,.14); color: #eafff1; font: inherit; font-size: 14px; cursor: pointer; white-space: nowrap; box-shadow: 0 0 16px rgba(74,222,128,.22); }
+.nmob:hover { background: rgba(74,222,128,.3); }

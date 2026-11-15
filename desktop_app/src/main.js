@@ -114,6 +114,7 @@ function handle(name, fn) {
 
 function registerIpc() {
   handle('state', () => publicState());
+  handle('mobile:dialog', () => { mobileDialog(); }); // زر «الجوال» في الخريطة يفتح نفس نافذة الربط
   handle('contracts:list', () => contracts.list());
   handle('contracts:rescan', () => contracts.rescan((m) => store.log(m)));
   handle('assistant:ask', async (p) => {
