@@ -44,32 +44,60 @@
 
   const NS = 'http://www.w3.org/2000/svg';
   const mk = (tag, attrs) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; };
-  // خيوط عنكبوت: حبال منحنية من النواة إلى كل وكيل، وحلقة تربط الوكلاء بعضهم ببعض، وعليها نبضات تذهب وتعود
+  const ICON = { 1: '💬', 2: '📈', 3: '📅', 4: '📝', 5: '💰', 6: '📄', 7: '📣', 8: '📊' };
+  let sel = null; // رقم الوكيل المفتوحة تفاصيله
+
+  // خطوط نيون مستقيمة من النواة إلى كل وكيل وإلى رأس الشركة، مع مدارين خافتين ونبضات تتحرك
   function drawLines() {
     let svg = grid.querySelector('.map-lines');
     if (!svg) { svg = mk('svg', { class: 'map-lines' }); grid.prepend(svg); }
     svg.innerHTML = '';
-    const orb = grid.querySelector('.morb'); if (!orb) return;
-    const g = grid.getBoundingClientRect(), o = orb.getBoundingClientRect();
+    const core = grid.querySelector('.ncore'); if (!core) return;
+    const g = grid.getBoundingClientRect(); if (!g.width) return;
     svg.setAttribute('viewBox', `0 0 ${g.width} ${g.height}`);
-    const ox = o.left - g.left + o.width / 2, oy = o.top - g.top + o.height / 2;
-    const nodes = [...grid.querySelectorAll('.mcard')].map((c) => {
-      const r = c.getBoundingClientRect();
-      return { x: r.left - g.left + r.width / 2, y: r.top - g.top + r.height / 2, col: getComputedStyle(c).getPropertyValue('--c').trim() || '#60a5fa' };
-    });
-    nodes.forEach((n) => { n.a = Math.atan2(n.y - oy, n.x - ox); });
-    const ring = [...nodes].sort((p, q) => p.a - q.a);
-    const rope = (x1, y1, x2, y2, sag, col, delay, dur) => {
-      const mx = (x1 + x2) / 2, my = (y1 + y2) / 2, dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy) || 1;
-      const cx = mx - (dy / len) * sag, cy = my + (dx / len) * sag, d = `M${x1},${y1} Q${cx},${cy} ${x2},${y2}`;
-      svg.appendChild(mk('path', { d, fill: 'none', stroke: col, 'stroke-opacity': '.3', 'stroke-width': '1.4', 'stroke-linecap': 'round' }));
-      svg.appendChild(mk('path', { d, fill: 'none', stroke: col, 'stroke-opacity': '.9', 'stroke-width': '1.8', 'stroke-linecap': 'round', 'stroke-dasharray': '3 26', class: 'mflow', style: `animation-delay:${delay}s;animation-duration:${dur}s` }));
-      const dot = mk('circle', { r: '3.2', fill: col, opacity: '.95' });
+    const mid = (el) => { const r = el.getBoundingClientRect(); return { x: r.left - g.left + r.width / 2, y: r.top - g.top + r.height / 2 }; };
+    const o = mid(core);
+    [[0.38, 0.34], [0.27, 0.24]].forEach(([rx, ry], i) => svg.appendChild(mk('ellipse', { cx: o.x, cy: o.y, rx: g.width * rx, ry: g.height * ry, fill: 'none', stroke: '#7aa2ff', 'stroke-opacity': i ? '.10' : '.16', 'stroke-width': '1', 'stroke-dasharray': i ? '2 9' : '' })));
+    const line = (x2, y2, col, delay, dur) => {
+      const d = `M${o.x},${o.y} L${x2},${y2}`;
+      svg.appendChild(mk('path', { d, fill: 'none', stroke: col, 'stroke-opacity': '.45', 'stroke-width': '1.3' }));
+      svg.appendChild(mk('path', { d, fill: 'none', stroke: col, 'stroke-opacity': '.95', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-dasharray': '3 26', class: 'mflow', style: `animation-delay:${delay}s;animation-duration:${dur}s` }));
+      const dot = mk('circle', { r: '3', fill: col });
       dot.appendChild(mk('animateMotion', { path: d, dur: (dur * 1.6) + 's', begin: delay + 's', repeatCount: 'indefinite', keyPoints: '0;1;0', keyTimes: '0;.5;1', calcMode: 'linear' }));
       svg.appendChild(dot);
     };
-    nodes.forEach((n, i) => rope(ox, oy, n.x, n.y, (i % 2 ? 1 : -1) * 26, n.col, (i * 0.37) % 3, 3.2 + (i % 3) * 0.6));
-    ring.forEach((n, i) => { const m = ring[(i + 1) % ring.length]; rope(n.x, n.y, m.x, m.y, 34, n.col, (i * 0.5) % 4, 4 + (i % 2)); });
+    grid.querySelectorAll('.nnode .nring, .nhead .nring').forEach((el, i) => {
+      const c = mid(el), col = getComputedStyle(el).getPropertyValue('--c').trim() || '#60a5fa';
+      line(c.x, c.y, col, (i * 0.37) % 3, 3 + (i % 3) * 0.6);
+    });
+  }
+
+  // نواة الجزيئات: كرة نقاط تدور ببطء (تتوقف حين تكون الخريطة مخفية)
+  const PTS = Array.from({ length: 420 }, (_, i) => { const y = 1 - (i / 419) * 2, r = Math.sqrt(1 - y * y), t = i * 2.399963; return [Math.cos(t) * r, y, Math.sin(t) * r, Math.random()]; });
+  function spin(ts) {
+    requestAnimationFrame(spin);
+    const cv = grid.querySelector('canvas.ncore'); if (!cv || !cv.offsetParent) return;
+    const S = cv.width, x = cv.getContext('2d'), a = ts / 5200, ca = Math.cos(a), sa = Math.sin(a), R0 = S * 0.42;
+    x.clearRect(0, 0, S, S);
+    for (const [px, py, pz, rnd] of PTS) {
+      const X = px * ca + pz * sa, Z = pz * ca - px * sa, k = (Z + 1.6) / 2.6;
+      const tw = 0.55 + 0.45 * Math.sin(ts / 400 + rnd * 40);
+      x.globalAlpha = k * tw;
+      x.fillStyle = rnd > 0.82 ? '#ffffff' : rnd > 0.45 ? '#ff7a45' : '#ff3d5a';
+      x.beginPath(); x.arc(S / 2 + X * R0, S / 2 + py * R0, (0.7 + k * 1.5) * (S / 220), 0, 6.283); x.fill();
+    }
+    x.globalAlpha = 1;
+  }
+  requestAnimationFrame(spin);
+
+  function nodeHtml(m, i, total) {
+    const ang = (-90 + 360 / total / 2 + i * (360 / total)) * Math.PI / 180;
+    const left = 50 + 38 * Math.cos(ang), top = 55 + 34 * Math.sin(ang);
+    const on = m.ag.filter((a) => a[1] === 'on').length;
+    const dots = m.ag.map((a, j) => `<i class="${a[1]}" style="--a:${(j - (m.ag.length - 1) / 2) * 24}deg"></i>`).join('');
+    return `<div class="nnode ${sel === m.n ? 'sel' : ''}" style="--c:${m.c};left:${left.toFixed(2)}%;top:${top.toFixed(2)}%" data-n="${m.n}" title="اضغط لعرض الوكلاء">` +
+      `<div class="nring" style="--c:${m.c}">${dots}<span>${ICON[m.n] || '●'}</span></div>` +
+      `<div class="nlab"><b>${esc(m.t)}</b><small>${num(on)} من ${num(m.ag.length)} يعمل · <u class="${on ? 'on' : ''}"></u> ${on ? 'متصل' : 'متوقف'}</small><em><big>${esc(m.k[0])}</big> ${esc(m.k[1])}</em></div></div>`;
   }
 
   function render() {
@@ -77,9 +105,16 @@
     const cards = model(st, last.ct, last.odoo, last.visits);
     const live = cards.reduce((n, m) => n + m.ag.filter((a) => a[1] === 'on').length, 0);
     const soonN = cards.reduce((n, m) => n + m.ag.filter((a) => a[1] === 'soon').length, 0);
-    grid.innerHTML = cards.map(cardHtml).join('') +
-      `<div class="morb" data-go="office" title="افتح المكتب"><i></i><div class="mfilm"><img src="center-art.webp" alt=""><u class="mdust"></u><u class="msweep"></u><u class="mvig"></u></div><div class="mcap"><b>${num(live)}</b><span>وكيلاً يعمل</span><small>${num(soonN)} قريباً</small></div></div>`;
+    const cur = cards.find((m) => m.n === sel);
+    grid.classList.add('neon');
+    grid.innerHTML =
+      `<div class="nhead" data-go="office" title="افتح المكتب"><div class="nring" style="--c:#fde68a"><img src="center-art.webp" alt=""></div><div class="nlab"><b>شعلة الجزيرة</b><small>الإدارة</small></div></div>` +
+      `<div class="ncorebox" data-go="office" title="افتح المكتب"><canvas class="ncore" width="440" height="440"></canvas><div class="ncap"><b>نواة سراج</b><small>${num(live)} وكيلاً يعمل · ${num(soonN)} قريباً · ${num(cards.length)} أقسام</small></div></div>` +
+      cards.map((m, i) => nodeHtml(m, i, cards.length)).join('') +
+      (cur ? `<div class="ndetail"><button class="nclose" title="إغلاق">✕</button>${cardHtml(cur)}</div>` : '');
     const go = (tab) => { const b = document.querySelector(`nav button[data-tab="${tab}"]`); if (b) b.click(); };
+    grid.querySelectorAll('.nnode').forEach((n) => { n.onclick = () => { const k = Number(n.dataset.n); sel = sel === k ? null : k; render(); }; });
+    const cl = grid.querySelector('.nclose'); if (cl) cl.onclick = () => { sel = null; render(); };
     grid.querySelectorAll('[data-go]').forEach((h) => {
       h.onclick = (e) => {
         if (e.target.closest('.mtg.live')) return;

@@ -241,3 +241,44 @@ main:has(#map.active) { padding: 14px 20px 12px; overflow: auto; }
 @keyframes spot { 0%, 100% { opacity: .75; } 50% { opacity: 1; } }
 .ag .bub { background: linear-gradient(180deg, #fffdf6, #eef1f8); box-shadow: 0 8px 22px rgba(0,0,0,.5), 0 0 0 1px rgba(212,175,55,.35); }
 .ag .plate { background: linear-gradient(180deg, rgba(20,28,50,.92), rgba(8,12,24,.95)); box-shadow: 0 4px 14px rgba(0,0,0,.5), 0 0 12px color-mix(in srgb, var(--c) 40%, transparent); }
+
+/* ---------- خريطة النواة النيون (OS CORE) ---------- */
+#map .map-head { text-align: start; margin: 0 6px 6px; }
+#map .map-head small { display: block; color: #7f95c9; font-size: 11px; }
+#map .map-head h1 { font-size: 26px; color: #eaf1ff; text-shadow: 0 0 14px rgba(120,160,255,.55); }
+#map .map-head h1 i { display: inline-block; width: 11px; height: 22px; margin-inline-start: 8px; background: #cfe0ff; vertical-align: -3px; animation: ncaret 1.1s steps(1) infinite; }
+@keyframes ncaret { 50% { opacity: 0; } }
+#map .map-grid.neon { display: block; position: relative; padding: 0; min-height: 600px; overflow: hidden; border-radius: 16px; border: 1px solid rgba(110,150,255,.28);
+  background: linear-gradient(rgba(110,150,255,.07) 1px, transparent 1px) 0 0 / 100% 44px, linear-gradient(90deg, rgba(110,150,255,.07) 1px, transparent 1px) 0 0 / 44px 100%, radial-gradient(ellipse at 50% 55%, rgba(48,62,150,.55), rgba(9,13,38,.94) 70%);
+  box-shadow: inset 0 0 90px rgba(4,6,22,.85), 0 0 34px rgba(70,100,255,.16); }
+.neon .map-lines { z-index: 0; filter: drop-shadow(0 0 4px rgba(150,180,255,.55)); }
+.neon .nnode, .neon .nhead, .neon .ncorebox { position: absolute; transform: translate(-50%, -50%); z-index: 1; display: flex; flex-direction: column; align-items: center; cursor: pointer; text-align: center; }
+.neon .ncorebox { left: 50%; top: 55%; }
+.neon canvas.ncore { width: 190px; height: 190px; border-radius: 50%; background: radial-gradient(circle, rgba(255,90,60,.30), rgba(255,60,90,.08) 55%, transparent 70%); filter: drop-shadow(0 0 22px rgba(255,90,70,.55)); }
+.neon .ncap { margin-top: -6px; }
+.neon .ncap b { display: block; font-size: 13px; color: #fff; }
+.neon .ncap small { font-size: 11px; color: #9fb2e0; }
+.neon .nhead { left: 50%; top: 9%; }
+.neon .nring { --c: #60a5fa; position: relative; width: 62px; height: 62px; border-radius: 50%; display: grid; place-items: center; border: 2px solid var(--c); background: radial-gradient(circle, color-mix(in srgb, var(--c) 34%, #0a1030), #0a1030 72%);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--c) 14%, transparent), 0 0 24px color-mix(in srgb, var(--c) 75%, transparent), inset 0 0 14px color-mix(in srgb, var(--c) 45%, transparent); transition: transform .15s; animation: nbreath 3.6s ease-in-out infinite; }
+.neon .nring span { font-size: 24px; filter: drop-shadow(0 0 6px var(--c)); }
+.neon .nring i { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px; border-radius: 50%; background: #4b5578; transform: rotate(var(--a)) translateY(-43px); }
+.neon .nring i.on { background: var(--c); box-shadow: 0 0 8px var(--c); }
+.neon .nring i.soon { background: transparent; border: 1px dashed #8fa0cc; }
+.neon .nhead .nring { width: 78px; height: 78px; overflow: hidden; padding: 0; }
+.neon .nhead .nring img { width: 100%; height: 100%; object-fit: cover; }
+.neon .nnode:hover .nring, .neon .nnode.sel .nring, .neon .nhead:hover .nring { transform: scale(1.12); }
+.neon .nnode.sel .nring { box-shadow: 0 0 0 6px color-mix(in srgb, var(--c) 30%, transparent), 0 0 40px var(--c); }
+@keyframes nbreath { 50% { filter: brightness(1.25); } }
+.neon .nlab { margin-top: 12px; white-space: nowrap; line-height: 1.35; }
+.neon .nlab b { display: block; font-size: 14px; color: var(--c, #fde68a); text-shadow: 0 0 10px color-mix(in srgb, var(--c, #fde68a) 70%, transparent); }
+.neon .nlab small { display: block; font-size: 11px; color: #a9b8e0; }
+.neon .nlab small u { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #64708f; }
+.neon .nlab small u.on { background: #4ade80; box-shadow: 0 0 6px #4ade80; }
+.neon .nlab em { display: block; font-style: normal; font-size: 11px; color: #dbe5ff; opacity: .9; }
+.neon .nlab em big { font-size: 13px; font-weight: 800; color: #fff; }
+.neon .nhead .nlab b { color: #fde68a; }
+.neon .ndetail { position: absolute; inset-inline-start: 14px; top: 14px; width: 300px; z-index: 3; animation: ndin .18s ease-out; }
+.neon .ndetail .mcard { box-shadow: 0 0 34px color-mix(in srgb, var(--c) 45%, transparent); }
+.neon .nclose { position: absolute; inset-inline-end: -9px; top: -9px; z-index: 4; width: 24px; height: 24px; border-radius: 50%; border: 1px solid rgba(255,255,255,.25); background: rgba(8,12,30,.8); color: #cdd8f5; cursor: pointer; font-size: 12px; line-height: 1; padding: 0; }
+@keyframes ndin { from { opacity: 0; transform: translateY(-6px); } }
