@@ -61,7 +61,8 @@ function create({ store, dataDir, commander, payments, whatsapp, agentApi, log, 
     const c = cfg(); if (!c.chatId || !c.token) return;
     const cap = '📝 بوست جاهز للنشر (لن يُنشر إلا بموافقتك)' + String.fromCharCode(10, 10) + String(post.caption || '').slice(0, 850);
     const kb = { inline_keyboard: [[{ text: '✅ انشر الآن', callback_data: `pbok:${post.id}` }, { text: '❌ ارفض', callback_data: `pbno:${post.id}` }]] };
-    if (apiOverride) return apiOverride('sendPhoto', { chat_id: c.chatId, caption: cap, reply_markup: kb });
+    const keep = (r) => { if (r && r.message_id) { post.tgMsgId = r.message_id; store.save(); } };
+    if (apiOverride) { const r0 = await apiOverride('sendPhoto', { chat_id: c.chatId, caption: cap, reply_markup: kb }); keep(r0); return r0; }
     const fd = new FormData();
     fd.append('chat_id', String(c.chatId)); fd.append('caption', cap); fd.append('reply_markup', JSON.stringify(kb));
     const buf = require('fs').readFileSync(imagePath), ext = require('path').extname(imagePath).toLowerCase();
@@ -70,7 +71,8 @@ function create({ store, dataDir, commander, payments, whatsapp, agentApi, log, 
       const res = await fetch(`${API}/bot${c.token}/sendPhoto`, { method: 'POST', body: fd, signal: AbortSignal.timeout(90000), redirect: 'error' });
       const j = await res.json().catch(() => ({}));
       if (!j.ok) throw new Error(j.description || 'تعذّر إرسال الصورة');
-    } catch (e) { await send(c.chatId, cap + String.fromCharCode(10, 10) + '(تعذّر إرفاق الصورة: ' + redact(e.message).slice(0, 100) + ')', kb).catch(() => {}); }
+      keep(j.result);
+    } catch (e) { keep(await send(c.chatId, cap + String.fromCharCode(10, 10) + '(تعذّر إرفاق الصورة: ' + redact(e.message).slice(0, 100) + ')', kb).catch(() => null)); }
   }
   const send = (chatId, text, markup) => api('sendMessage', { chat_id: chatId, text: String(text).slice(0, 3800), ...(markup ? { reply_markup: markup } : {}) });
   const edit = (chatId, messageId, text, markup) => api('editMessageText', { chat_id: chatId, message_id: messageId, text: String(text).slice(0, 3800), reply_markup: markup || { inline_keyboard: [] } });
@@ -245,6 +247,24 @@ function create({ store, dataDir, commander, payments, whatsapp, agentApi, log, 
       if (Date.now() < ed.expires) {
         const cv = whatsapp.setDraft(ed.phone, text); const cd = waCard(cv);
         await send(m.chat.id, cd.text, cd.keyboard); return;
+      }
+    }
+    // تعديل منشور بانتظار الموافقة: بالرد على بطاقته، أو بأمر تعديل مباشر حين يكون المنشور المعلّق الوحيد
+    if (agentApi && agentApi.revisePost && text) {
+      const pendPosts = store.get().posts.filter((x) => x.status === 'pending_review');
+      const byReply = m.reply_to_message ? pendPosts.find((x) => x.tgMsgId === m.reply_to_message.message_id) : null;
+      const direct = !byReply && !m.reply_to_message && pendPosts.length === 1 && text.length <= 200 && /^(غي|عد|قص|طو|احذف|اضف|أضف|بد|استبدل|خل)/.test(text) && /(نص|كابشن|منشور|بوست|صور|هاشتاق|يونيفورم|تصميم|نصيح)/.test(text) ? pendPosts[0] : null;
+      const post = byReply || direct;
+      if (post) {
+        await send(m.chat.id, 'جارِ تعديل المنشور…');
+        try {
+          const oldMid = post.tgMsgId;
+          const rv = await agentApi.revisePost(post.id, text);
+          if (rv.unsupported) { await send(m.chat.id, rv.unsupported); return; }
+          if (oldMid) await api('editMessageReplyMarkup', { chat_id: m.chat.id, message_id: oldMid, reply_markup: { inline_keyboard: [] } }).catch(() => {});
+          await notifyPost(rv.post, rv.imagePath);
+        } catch (e) { await send(m.chat.id, '⚠ تعذّر التعديل: ' + redact(e.message).slice(0, 200)); }
+        return;
       }
     }
     if (m.reply_to_message && whatsapp && whatsapp.takeoverByMsg) { // رد المالك المباشر على عميل تدخّل فيه

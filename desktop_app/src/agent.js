@@ -74,6 +74,46 @@ async function publishPost(postId) {
   return post;
 }
 
+// تعديل منشور بانتظار الموافقة بأمر من المالك: تبديل الصورة بالتالية من المكتبة، أو إعادة كتابة النص.
+// تعديل محتوى الصورة نفسها (يونيفورم/ألوان) غير مدعوم هنا: سراج لا يولّد الصور.
+async function revisePost(postId, instruction) {
+  const data = store.get();
+  const post = data.posts.find((p) => p.id === postId);
+  if (!post || post.status !== 'pending_review') throw new Error('هذا المنشور لم يعد بانتظار الموافقة');
+  const ins = String(instruction || '').trim().slice(0, 500);
+  if (!ins) throw new Error('اكتب التعديل المطلوب');
+  const cur = data.media.find((x) => x.id === post.mediaId);
+  if (/(غي|بد|استبدل).{0,15}صور|صور[ةه]\s*(ثاني|اخر|أخر|غير|جديد)/.test(ins)) {
+    const key = (m) => m.skippedAt || m.addedAt;
+    const next = data.media.filter((m) => !m.usedAt && m.id !== post.mediaId).sort((a, b) => key(a).localeCompare(key(b)))[0];
+    if (!next) throw new Error('لا توجد صورة أخرى غير مستخدمة في «مكتبة الصور»');
+    const imagePath = path.join(mediaDir, path.basename(next.file));
+    const caption = await claude.captionForImage({ imagePath, settings: data.settings, platforms: post.platforms, extraHint: feedbackHint(data) });
+    const now = new Date().toISOString();
+    if (cur) { delete cur.usedAt; cur.skippedAt = now; }
+    next.usedAt = now; post.mediaId = next.id; post.caption = caption;
+    store.save(); store.log('🔁 بُدّلت صورة منشور بانتظار المراجعة');
+    return { post, imagePath };
+  }
+  if (/(يونيفورم|الزي|لبس|ملابس|خلفي|لون|الوان|ألوان|شعار|تصميم|رسم)/.test(ins) && !/(نص|كابشن|هاشتاق|كلام)/.test(ins)) {
+    return { unsupported: 'تعديل الصورة نفسها (اليونيفورم، الألوان، الخلفية) يحتاج إعادة توليد التصميم، وهو غير مفعّل بعد.\nأقدر الآن: «غيّر الصورة» لصورة أخرى من المكتبة، أو تعديل النص مثل «قصّر النص».' };
+  }
+  if (!cur) throw new Error('صورة المنشور حُذفت');
+  const raw = await claude.askText([
+    'أنت مدير سوشال ميديا محترف لشركة مكافحة حشرات في الرياض.',
+    `النبرة: ${data.settings.tone}. اللغة: ${data.settings.language}.`,
+    'هذا نص منشور بانتظار موافقة المالك:', '«' + post.caption + '»',
+    `طلب المالك للتعديل: ${ins}`,
+    'عدّل النص حسب الطلب فقط وأبقِ الباقي كما هو. لا تعد بنتائج مضمونة ولا تذكر أسعاراً. أبقِ رقم الواتساب 0551104723 والهاشتاقات إلا إذا طلب المالك غير ذلك.',
+    'أعد فقط JSON بدون أي نص آخر: {"caption": "..."}',
+  ].join('\n'), data.settings);
+  const j = claude.extractJson(raw);
+  if (!j || !j.caption) throw new Error('لم يرجع نص معدّل');
+  post.caption = String(j.caption).trim();
+  store.save(); store.log('✏️ عُدّل نص منشور بانتظار المراجعة');
+  return { post, imagePath: path.join(mediaDir, path.basename(cur.file)) };
+}
+
 let reviewNotifier = null;
 function setReviewNotifier(fn) { reviewNotifier = fn; }
 let notifier = () => {};
@@ -167,4 +207,4 @@ function startScheduler() {
   setTimeout(() => refreshStats().catch(() => {}), 60 * 1000);
 }
 
-module.exports = { setReviewNotifier, setNotifier, isBusy: () => busy, setMediaDir, createPost, publishPost, dailyRun, startScheduler };
+module.exports = { setReviewNotifier, setNotifier, isBusy: () => busy, setMediaDir, createPost, publishPost, revisePost, dailyRun, startScheduler };
