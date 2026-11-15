@@ -23,7 +23,9 @@ button{width:100%;padding:11px;font-size:16px;border-radius:8px;border:1px solid
 <input id="c" maxlength="8" autocomplete="off" autocapitalize="characters" required><button>ربط</button><p id="e"></p></form>
 <script>document.getElementById('f').onsubmit=async(e)=>{e.preventDefault();const r=await fetch('/pair',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:document.getElementById('c').value})});const j=await r.json().catch(()=>({}));if(j.ok)location.href='/';else document.getElementById('e').textContent=j.error||'رمز غير صحيح';};</script></body></html>`;
 
-function create({ store, handlers, publicState, log }) {
+function create({ store, handlers, publicState, mediaDir, cardInfo, log }) {
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const uid = (v) => { if (!UUID.test(String(v))) throw new Error('معرّف غير صالح'); return String(v); };
   let server = null, fails = 0, lockedUntil = 0, timer = null;
   const clients = new Set();
   const cfg = () => { const d = store.get(); if (!d.mobile || typeof d.mobile !== 'object') d.mobile = {}; if (!d.mobile.port) d.mobile.port = 8765; return d.mobile; };
@@ -44,7 +46,7 @@ function create({ store, handlers, publicState, log }) {
       odoo: { hasKey: s.odoo.hasKey }, visits: { hasToken: s.visits.hasToken },
       wa: { hasBridgeToken: s.wa.hasBridgeToken, hasToken: s.wa.hasToken, phoneId: s.wa.phoneId ? '1' : '', waiting: s.wa.waiting, profile: { autoReply: pr.autoReply, followFirstHours: pr.followFirstHours, followDays: pr.followDays } },
       telegram: { paired: s.telegram.paired },
-      proposals: s.proposals.map((p) => ({ id: p.id, type: p.type, status: p.status, amount: p.amount, date: p.date })),
+      proposals: s.proposals.map((p) => ({ id: p.id, type: p.type, status: p.status, ...(p.status === 'pending' && cardInfo ? cardInfo(p.id) : {}) })),
       posts: s.posts.slice(0, 40).map((p) => ({ id: p.id, status: p.status, caption: String(p.caption || '').slice(0, 900), createdAt: p.createdAt })),
       log: s.log.slice(0, 30), agentBusy: s.agentBusy,
     };
@@ -56,6 +58,11 @@ function create({ store, handlers, publicState, log }) {
     'visits:summary': () => handlers['visits:summary'](),
     'assistant:ask': (p) => handlers['assistant:ask']({ text: String((p && p.text) || '').slice(0, 2000), attachments: [], history: Array.isArray(p && p.history) ? p.history.slice(-8) : [] }),
     'wa:save': (f) => handlers['wa:save']({ profile: { ...publicState().wa.profile, autoReply: f && f.profile && f.profile.autoReply === 'off' ? 'off' : 'on' } }),
+    // الموافقات: نفس دوال التطبيق، والتأكيد النهائي يتم في صفحة الجوال قبل الإرسال
+    'post:publish': async (id) => { const r = await handlers['post:publish'](uid(id)); return { status: r && r.status }; },
+    'post:reject': async (id) => { await handlers['post:reject'](uid(id), ''); return {}; },
+    'proposal:approve': async (id) => { const r = await handlers['proposal:approve'](uid(id)); return { name: r && r.name }; },
+    'proposal:reject': async (id) => { await handlers['proposal:reject'](uid(id)); return {}; },
     'settings:save': (s) => { if (!s || typeof s.reviewBeforePublish !== 'boolean') throw new Error('مدخل غير صالح'); return handlers['settings:save']({ reviewBeforePublish: s.reviewBeforePublish }); },
   };
 
@@ -97,6 +104,13 @@ function create({ store, handlers, publicState, log }) {
     if (req.method === 'GET' && STATIC[p]) {
       const [f, type] = STATIC[p];
       try { const buf = fs.readFileSync(path.join(RDIR, f)); res.writeHead(200, { ...head, 'Content-Type': type }); return res.end(buf); }
+      catch { res.writeHead(404, head); return res.end(); }
+    }
+    const mm = req.method === 'GET' && /^\/media\/([0-9a-f-]{36})$/i.exec(p);
+    if (mm && mediaDir) { // صورة منشور بانتظار المراجعة (بمعرّف المنشور، لا بمسار ملف)
+      const d = store.get(), post = (d.posts || []).find((x) => x.id === mm[1]), md = post && (d.media || []).find((x) => x.id === post.mediaId);
+      const ext = md ? path.extname(md.file).toLowerCase() : '', type = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp' }[ext];
+      try { if (!type) throw new Error('x'); const buf = fs.readFileSync(path.join(mediaDir, path.basename(md.file))); res.writeHead(200, { ...head, 'Content-Type': type, 'Cache-Control': 'private, max-age=600' }); return res.end(buf); }
       catch { res.writeHead(404, head); return res.end(); }
     }
     if (req.method === 'GET' && p === '/events') {

@@ -416,7 +416,8 @@ function create({ store, dataDir, commander, payments, whatsapp, agentApi, log, 
   const status = () => ({ hasToken: !!cfg().token, paired: !!cfg().chatId, username: cfg().username || '', running, pairing: !!(pairing && Date.now() < pairing.expires) });
 
   async function notifyText(t) { const c = cfg(); if (!c.chatId || !c.token) return; await send(c.chatId, String(t).slice(0, 3500)).catch(() => {}); }
-  return { notifyPost, notifyText, start, stop, connect, startPairing, disconnect, status, _onUpdate: onUpdate };
+  const cardInfo = (id) => { const p = findProposal(id); return p ? { text: card(p).text, ready: p.type === 'invoice' || !!p.selected } : { text: '', ready: false }; };
+  return { cardInfo, notifyPost, notifyText, start, stop, connect, startPairing, disconnect, status, _onUpdate: onUpdate };
 }
 
 module.exports = { create, TOKEN_RE };

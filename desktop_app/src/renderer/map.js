@@ -46,6 +46,9 @@
   const mk = (tag, attrs) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; };
   const ICON = { 1: '💬', 2: '📈', 3: '📅', 4: '📝', 5: '💰', 6: '📄', 7: '📣', 8: '📊' };
   let sel = null; // رقم الوكيل المفتوحة تفاصيله
+  let dirty = false; // تحديث مؤجَّل حتى ينتهي المالك من الكتابة في المحادثة
+  // نصف قطر الحلقة وتباعد وكلاء الشجرة (نسبة مئوية)؛ صفحة الجوال تغيّرهما
+  const RX = () => Number(window.SIRAJ_MAP_RX) || 26, SUBW = () => Number(window.SIRAJ_MAP_SUB) || 15;
 
   // خطوط نيون مستقيمة من النواة إلى كل وكيل وإلى رأس الشركة، مع مدارين خافتين ونبضات تتحرك
   function drawLines() {
@@ -75,7 +78,7 @@
       line(d.x, d.y, o.x, o.y, '#ff7a45', 0, 3, true);
       return;
     }
-    [[0.26, 0.34], [0.18, 0.24]].forEach(([rx, ry], i) => svg.appendChild(mk('ellipse', { cx: o.x, cy: o.y, rx: g.width * rx, ry: g.height * ry, fill: 'none', stroke: '#7aa2ff', 'stroke-opacity': i ? '.10' : '.16', 'stroke-width': '1', 'stroke-dasharray': i ? '2 9' : '' })));
+    [[RX() / 100, 0.34], [RX() / 144, 0.24]].forEach(([rx, ry], i) => svg.appendChild(mk('ellipse', { cx: o.x, cy: o.y, rx: g.width * rx, ry: g.height * ry, fill: 'none', stroke: '#7aa2ff', 'stroke-opacity': i ? '.10' : '.16', 'stroke-width': '1', 'stroke-dasharray': i ? '2 9' : '' })));
     grid.querySelectorAll('.nnode .nring, .nhead .nring').forEach((el, i) => { const c = mid(el); line(o.x, o.y, c.x, c.y, colOf(el), (i * 0.37) % 3, 3 + (i % 3) * 0.6); });
   }
 
@@ -99,7 +102,7 @@
 
   function nodeHtml(m, i, total) {
     const ang = (-90 + 360 / total / 2 + i * (360 / total)) * Math.PI / 180;
-    const left = 50 + 26 * Math.cos(ang), top = 55 + 34 * Math.sin(ang);
+    const left = 50 + RX() * Math.cos(ang), top = 55 + 34 * Math.sin(ang);
     const on = m.ag.filter((a) => a[1] === 'on').length;
     const dots = m.ag.map((a, j) => `<i class="${a[1]}" style="--a:${(j - (m.ag.length - 1) / 2) * 24}deg"></i>`).join('');
     return `<div class="nnode ${sel === m.n ? 'sel' : ''}" style="--c:${m.c};left:${left.toFixed(2)}%;top:${top.toFixed(2)}%" data-n="${m.n}" title="اضغط لعرض الوكلاء">` +
@@ -111,7 +114,7 @@
   function treeHtml(m) {
     const n = m.ag.length, on = m.ag.filter((a) => a[1] === 'on').length;
     const subs = m.ag.map(([label, s, key], j) => {
-      const left = 50 + (j - (n - 1) / 2) * 15;
+      const left = 50 + (j - (n - 1) / 2) * SUBW();
       const chip = s === 'on' ? 'يعمل' : s === 'soon' ? 'قريباً' : 'متوقف';
       const tog = key ? `<button class="mtg ${s === 'on' ? 'on' : ''} live" data-key="${key}" title="تشغيل / إيقاف"></button>` : '';
       return `<div class="nsub ${s}" style="--c:${m.c};left:${left.toFixed(2)}%;top:63%" data-go="${GO[m.n]}" data-state="${s}" data-label="${esc(label)}"><div class="nring" style="--c:${m.c}"><span>${s === 'soon' ? '⏳' : '🤖'}</span></div><div class="nlab"><b>${esc(label)}</b><em class="nchip ${s}">${chip}</em>${tog}</div></div>`;
@@ -173,25 +176,29 @@
     const typing = document.activeElement && document.activeElement.closest && document.activeElement.closest('.nchatf');
     const head = `<div class="nhead" data-go="office" title="افتح المكتب"><div class="nring" style="--c:#fde68a"><img src="center-art.webp" alt=""></div><div class="nlab"><b>شعلة الجزيرة</b><small>الإدارة</small></div></div>`;
     grid.classList.toggle('tree', !!cur);
-    grid.innerHTML = head + (cur
-      ? treeHtml(cur) + stats + chatHtml(cur)
+    // في صفحة الجوال تُعرض اللوحات في حاوية مستقلة تحت الخريطة (mapSide) بدل داخلها
+    const side = document.getElementById('mapSide'), panels = stats + (cur ? chatHtml(cur) : feed);
+    grid.innerHTML = head + (cur ? treeHtml(cur)
       : `<div class="ncorebox" data-go="office" title="افتح المكتب"><canvas class="ncore" width="440" height="440"></canvas><div class="ncap"><b>نواة سراج</b><small>${num(live)} وكيلاً يعمل · ${num(soonN)} قريباً · ${num(cards.length)} أقسام</small></div></div>` +
-        cards.map((m, i) => nodeHtml(m, i, cards.length)).join('') + stats + feed);
-    const bk = grid.querySelector('[data-back]'); if (bk) bk.onclick = () => { sel = null; render(); };
-    const cf = grid.querySelector('.nchatf');
+        cards.map((m, i) => nodeHtml(m, i, cards.length)).join('')) + (side ? '' : panels);
+    if (side) side.innerHTML = panels;
+    const root = side ? { querySelector: (q) => grid.querySelector(q) || side.querySelector(q), querySelectorAll: (q) => [...grid.querySelectorAll(q), ...side.querySelectorAll(q)] } : grid;
+    const bk = root.querySelector('[data-back]'); if (bk) bk.onclick = () => { sel = null; render(); };
+    const cf = root.querySelector('.nchatf');
     if (cf && cur) {
-      const inp = cf.querySelector('input'), box = grid.querySelector('.nmsgs');
+      const inp = cf.querySelector('input'), box = root.querySelector('.nmsgs');
       inp.value = draft; inp.oninput = () => { draft = inp.value; };
+      inp.onblur = () => { if (dirty) { dirty = false; setTimeout(render, 0); } };
       if (typing && !chatBusy) { inp.focus(); inp.setSelectionRange(draft.length, draft.length); }
       box.scrollTop = box.scrollHeight;
       cf.onsubmit = (e) => { e.preventDefault(); chatSend(cur, inp.value); };
-      grid.querySelectorAll('[data-cq]').forEach((a) => { a.onclick = () => chatSend(cur, a.dataset.cq); });
+      root.querySelectorAll('[data-cq]').forEach((a) => { a.onclick = () => chatSend(cur, a.dataset.cq); });
     }
     const go = (tab) => { const b = document.querySelector(`nav button[data-tab="${tab}"]`); if (b) b.click(); };
-    grid.querySelectorAll('.nnode').forEach((n) => { n.onclick = () => { const k = Number(n.dataset.n); sel = sel === k ? null : k; draft = ''; render(); }; });
-    grid.querySelectorAll('[data-sel]').forEach((n) => { n.onclick = () => { const k = Number(n.dataset.sel); sel = sel === k ? null : k; draft = ''; render(); }; });
-    const cl = grid.querySelector('.nclose'); if (cl) cl.onclick = () => { sel = null; render(); };
-    grid.querySelectorAll('[data-go]').forEach((h) => {
+    root.querySelectorAll('.nnode').forEach((n) => { n.onclick = () => { const k = Number(n.dataset.n); sel = sel === k ? null : k; draft = ''; render(); }; });
+    root.querySelectorAll('[data-sel]').forEach((n) => { n.onclick = () => { const k = Number(n.dataset.sel); sel = sel === k ? null : k; draft = ''; render(); }; });
+    const cl = root.querySelector('.nclose'); if (cl) cl.onclick = () => { sel = null; render(); };
+    root.querySelectorAll('[data-go]').forEach((h) => {
       h.onclick = (e) => {
         if (e.target.closest('.mtg.live')) return;
         const row = h.closest('.mrow, .nsub');
@@ -200,7 +207,7 @@
         go(h.dataset.go);
       };
     });
-    grid.querySelectorAll('.mtg.live').forEach((b) => { b.onclick = () => toggle(b.dataset.key, !b.classList.contains('on')); });
+    root.querySelectorAll('.mtg.live').forEach((b) => { b.onclick = () => toggle(b.dataset.key, !b.classList.contains('on')); });
     requestAnimationFrame(drawLines);
   }
 
@@ -221,7 +228,9 @@
   }
 
   function update(state, ct, odoo, visits) {
+    const ae = document.activeElement;
     last = { state: state || last.state, ct: ct === undefined ? last.ct : ct, odoo: odoo === undefined ? last.odoo : odoo, visits: visits === undefined ? last.visits : visits };
+    if (ae && ae.closest && ae.closest('.nchatf') && !chatBusy) { dirty = true; return; } // لا نعيد الرسم أثناء الكتابة
     render();
   }
   // شريط الأمر: يرسل الطلب إلى شريط المكتب نفسه (نفس العقل الذي يرد في تيليجرام) ويفتح تبويب المكتب لعرض الرد

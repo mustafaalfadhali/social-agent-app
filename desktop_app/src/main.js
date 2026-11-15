@@ -314,7 +314,7 @@ app.whenReady().then(() => {
   wa = require('./whatsapp').create({ store, claude: require('./claude'), log: (m) => store.log(m) });
   tg = telegramBot.create({ store, dataDir, commander, payments, whatsapp: wa, agentApi: agent, log: (m) => store.log(m) });
   tg.start();
-  mobile = require('./mobile').create({ store, handlers, publicState, log: (m) => store.log(m) });
+  mobile = require('./mobile').create({ store, handlers, publicState, mediaDir, cardInfo: (id) => tg.cardInfo(id), log: (m) => store.log(m) });
   mobile.start();
   agent.setNotifier((t) => tg.notifyText(t));
   agent.setReviewNotifier((p, img) => tg.notifyPost(p, img).catch((e) => store.log('تيليجرام: ' + String(e.message).slice(0, 100))));
