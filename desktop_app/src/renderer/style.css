@@ -282,3 +282,44 @@ main:has(#map.active) { padding: 14px 20px 12px; overflow: auto; }
 .neon .ndetail .mcard { box-shadow: 0 0 34px color-mix(in srgb, var(--c) 45%, transparent); }
 .neon .nclose { position: absolute; inset-inline-end: -9px; top: -9px; z-index: 4; width: 24px; height: 24px; border-radius: 50%; border: 1px solid rgba(255,255,255,.25); background: rgba(8,12,30,.8); color: #cdd8f5; cursor: pointer; font-size: 12px; line-height: 1; padding: 0; }
 @keyframes ndin { from { opacity: 0; transform: translateY(-6px); } }
+
+/* ---------- المرحلة 2: شريط الأمر واللوحتان الجانبيتان ---------- */
+#map .map-head { display: flex; align-items: flex-end; gap: 26px; }
+.ncmd { flex: 1; max-width: 640px; }
+.ncmd > div { display: flex; align-items: center; gap: 8px; padding: 4px 6px 4px 12px; border: 1px solid rgba(120,160,255,.45); border-radius: 8px; background: rgba(40,60,140,.28); box-shadow: 0 0 18px rgba(80,120,255,.18), inset 0 0 18px rgba(80,120,255,.10); }
+.ncmd > div span { color: #9fc0ff; font-size: 18px; font-weight: 800; }
+.ncmd input { flex: 1; background: transparent; border: 0; outline: 0; color: #eaf1ff; font: inherit; font-size: 14px; padding: 6px 2px; }
+.ncmd input::placeholder { color: #7f93c4; }
+.ncmd button { border: 1px solid rgba(120,160,255,.55); background: rgba(80,120,255,.25); color: #dfe9ff; border-radius: 6px; padding: 4px 12px; font: inherit; font-size: 12px; cursor: pointer; }
+.ncmd button:hover { background: rgba(80,120,255,.45); }
+.ncmd p { margin: 4px 4px 0; font-size: 11px; color: #6f83b5; }
+.ncmd p a { color: #9fb6ee; cursor: pointer; }
+.ncmd p a:hover { color: #fff; text-decoration: underline; }
+.neon .nside { position: absolute; top: 14px; bottom: 14px; width: 236px; z-index: 2; overflow: hidden; display: flex; flex-direction: column; padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(110,150,255,.30); background: rgba(8,12,34,.72); backdrop-filter: blur(3px); box-shadow: inset 0 0 24px rgba(70,100,255,.10); }
+.neon .nstats { inset-inline-start: 14px; }
+.neon .nfeed { inset-inline-end: 14px; }
+.neon .nside h4 { margin: 2px 0 8px; font-size: 11px; font-weight: 700; color: #7f95c9; display: flex; align-items: center; gap: 6px; }
+.neon .nside h4::before { content: '//'; color: #5269a8; }
+.neon .nside ul { list-style: none; margin: 0 0 12px; padding: 0; }
+.neon .nnums { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+.neon .nnums div { border: 1px solid rgba(110,150,255,.22); border-radius: 8px; padding: 6px 8px; background: rgba(30,44,110,.25); }
+.neon .nnums b { display: block; font-size: 22px; line-height: 1.15; color: #fff; text-shadow: 0 0 12px rgba(120,160,255,.7); }
+.neon .nnums span { font-size: 10.5px; color: #9fb2e0; }
+.neon .nnums .hot { border-color: rgba(250,204,21,.6); } .neon .nnums .hot b { color: #fde047; text-shadow: 0 0 12px rgba(250,204,21,.7); }
+.neon .ndeps li { display: grid; grid-template-columns: 1fr auto; gap: 2px 6px; padding: 5px 6px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+.neon .ndeps li:hover, .neon .ndeps li.sel { background: color-mix(in srgb, var(--c) 14%, transparent); }
+.neon .ndeps span { color: var(--c); } .neon .ndeps em { font-style: normal; color: #a9b8e0; font-size: 11px; }
+.neon .ndeps i { grid-column: 1 / -1; height: 3px; border-radius: 3px; background: rgba(255,255,255,.08); overflow: hidden; }
+.neon .ndeps u { display: block; height: 100%; background: var(--c); box-shadow: 0 0 8px var(--c); }
+.neon .nappr li { display: flex; align-items: center; gap: 8px; padding: 7px 9px; margin-bottom: 6px; border-radius: 8px; border: 1px solid color-mix(in srgb, var(--c) 55%, transparent); background: color-mix(in srgb, var(--c) 9%, transparent); cursor: pointer; font-size: 12px; color: #e6edff; }
+.neon .nappr li:hover { background: color-mix(in srgb, var(--c) 20%, transparent); }
+.neon .nappr b { font-size: 18px; color: var(--c); min-width: 20px; text-align: center; }
+.neon .nappr span { flex: 1; } .neon .nappr em { font-style: normal; font-size: 10.5px; color: #9fb2e0; }
+.neon .nside li.none { color: #6f83b5; font-size: 12px; border: 0; background: none; cursor: default; padding: 4px 2px; }
+.neon .nlive { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #4ade80; box-shadow: 0 0 8px #4ade80; animation: ncaret 1.4s ease-in-out infinite; }
+.neon .nlog { flex: 1; overflow: hidden; margin: 0; }
+.neon .nlog li { font-size: 11.5px; line-height: 1.45; color: #c9d5f3; padding: 5px 0 5px 0; border-bottom: 1px dashed rgba(110,150,255,.16); }
+.neon .nlog time { display: block; font-size: 10px; color: #6f83b5; }
+.neon .ndetail { inset-inline-start: 14px; top: 14px; width: 236px; }
+.neon .ndetail .mkpi big { font-size: 26px; }
+@media (max-width: 1180px) { .neon .nside { display: none; } }

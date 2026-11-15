@@ -57,7 +57,7 @@
     svg.setAttribute('viewBox', `0 0 ${g.width} ${g.height}`);
     const mid = (el) => { const r = el.getBoundingClientRect(); return { x: r.left - g.left + r.width / 2, y: r.top - g.top + r.height / 2 }; };
     const o = mid(core);
-    [[0.38, 0.34], [0.27, 0.24]].forEach(([rx, ry], i) => svg.appendChild(mk('ellipse', { cx: o.x, cy: o.y, rx: g.width * rx, ry: g.height * ry, fill: 'none', stroke: '#7aa2ff', 'stroke-opacity': i ? '.10' : '.16', 'stroke-width': '1', 'stroke-dasharray': i ? '2 9' : '' })));
+    [[0.26, 0.34], [0.18, 0.24]].forEach(([rx, ry], i) => svg.appendChild(mk('ellipse', { cx: o.x, cy: o.y, rx: g.width * rx, ry: g.height * ry, fill: 'none', stroke: '#7aa2ff', 'stroke-opacity': i ? '.10' : '.16', 'stroke-width': '1', 'stroke-dasharray': i ? '2 9' : '' })));
     const line = (x2, y2, col, delay, dur) => {
       const d = `M${o.x},${o.y} L${x2},${y2}`;
       svg.appendChild(mk('path', { d, fill: 'none', stroke: col, 'stroke-opacity': '.45', 'stroke-width': '1.3' }));
@@ -92,7 +92,7 @@
 
   function nodeHtml(m, i, total) {
     const ang = (-90 + 360 / total / 2 + i * (360 / total)) * Math.PI / 180;
-    const left = 50 + 38 * Math.cos(ang), top = 55 + 34 * Math.sin(ang);
+    const left = 50 + 26 * Math.cos(ang), top = 55 + 34 * Math.sin(ang);
     const on = m.ag.filter((a) => a[1] === 'on').length;
     const dots = m.ag.map((a, j) => `<i class="${a[1]}" style="--a:${(j - (m.ag.length - 1) / 2) * 24}deg"></i>`).join('');
     return `<div class="nnode ${sel === m.n ? 'sel' : ''}" style="--c:${m.c};left:${left.toFixed(2)}%;top:${top.toFixed(2)}%" data-n="${m.n}" title="اضغط لعرض الوكلاء">` +
@@ -106,14 +106,27 @@
     const live = cards.reduce((n, m) => n + m.ag.filter((a) => a[1] === 'on').length, 0);
     const soonN = cards.reduce((n, m) => n + m.ag.filter((a) => a[1] === 'soon').length, 0);
     const cur = cards.find((m) => m.n === sel);
+    // اللوحتان الجانبيتان: الدليل (أرقام وأقسام) والموافقات مع النشاط الحي. كلها من بيانات التطبيق.
+    const pay = (st.proposals || []).filter((p) => (p.type === 'payment' || p.type === 'invoice') && p.status === 'pending').length;
+    const pposts = (st.posts || []).filter((p) => p.status === 'pending_review').length;
+    const waWait = Number((st.wa && st.wa.waiting) || 0);
+    const appr = [[pay, 'حوالة أو فاتورة', 'office', '#facc15'], [pposts, 'منشور للمراجعة', 'posts', '#60a5fa'], [waWait, 'محادثة واتساب', 'office', '#f59e0b']].filter((a) => a[0] > 0);
+    const hhmm = (at) => { const d = new Date(at); return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }); };
+    const stats = `<div class="nside nstats"><h4>الدليل</h4><div class="nnums"><div><b>${num(live)}</b><span>وكيل يعمل</span></div><div><b>${num(cards.length)}</b><span>أقسام</span></div><div><b>${num(soonN)}</b><span>قريباً</span></div><div class="${pay + pposts + waWait ? 'hot' : ''}"><b>${num(pay + pposts + waWait)}</b><span>ينتظر موافقتك</span></div></div><h4>الأقسام</h4><ul class="ndeps">` +
+      cards.map((m) => { const on = m.ag.filter((a) => a[1] === 'on').length; return `<li data-sel="${m.n}" style="--c:${m.c}" class="${sel === m.n ? 'sel' : ''}"><span>${esc(m.t)}</span><em>${num(on)}/${num(m.ag.length)}</em><i><u style="width:${Math.round(on / m.ag.length * 100)}%"></u></i></li>`; }).join('') + '</ul></div>';
+    const feed = `<div class="nside nfeed"><h4>ينتظر موافقتك</h4><ul class="nappr">` +
+      (appr.map((a) => `<li data-go="${a[2]}" style="--c:${a[3]}"><b>${num(a[0])}</b><span>${a[1]}</span><em>افتح ‹</em></li>`).join('') || '<li class="none">لا شيء معلّق ✓</li>') +
+      `</ul><h4>النشاط الحي <u class="nlive"></u></h4><ul class="nlog">` +
+      ((st.log || []).slice(0, 9).map((l) => `<li><time>${hhmm(l.at)}</time>${esc(String(l.msg || '').slice(0, 90))}</li>`).join('') || '<li class="none">لا نشاط بعد</li>') + '</ul></div>';
     grid.classList.add('neon');
     grid.innerHTML =
       `<div class="nhead" data-go="office" title="افتح المكتب"><div class="nring" style="--c:#fde68a"><img src="center-art.webp" alt=""></div><div class="nlab"><b>شعلة الجزيرة</b><small>الإدارة</small></div></div>` +
       `<div class="ncorebox" data-go="office" title="افتح المكتب"><canvas class="ncore" width="440" height="440"></canvas><div class="ncap"><b>نواة سراج</b><small>${num(live)} وكيلاً يعمل · ${num(soonN)} قريباً · ${num(cards.length)} أقسام</small></div></div>` +
-      cards.map((m, i) => nodeHtml(m, i, cards.length)).join('') +
+      cards.map((m, i) => nodeHtml(m, i, cards.length)).join('') + stats + feed +
       (cur ? `<div class="ndetail"><button class="nclose" title="إغلاق">✕</button>${cardHtml(cur)}</div>` : '');
     const go = (tab) => { const b = document.querySelector(`nav button[data-tab="${tab}"]`); if (b) b.click(); };
     grid.querySelectorAll('.nnode').forEach((n) => { n.onclick = () => { const k = Number(n.dataset.n); sel = sel === k ? null : k; render(); }; });
+    grid.querySelectorAll('[data-sel]').forEach((n) => { n.onclick = () => { const k = Number(n.dataset.sel); sel = sel === k ? null : k; render(); }; });
     const cl = grid.querySelector('.nclose'); if (cl) cl.onclick = () => { sel = null; render(); };
     grid.querySelectorAll('[data-go]').forEach((h) => {
       h.onclick = (e) => {
@@ -147,6 +160,18 @@
   function update(state, ct, odoo, visits) {
     last = { state: state || last.state, ct: ct === undefined ? last.ct : ct, odoo: odoo === undefined ? last.odoo : odoo, visits: visits === undefined ? last.visits : visits };
     render();
+  }
+  // شريط الأمر: يرسل الطلب إلى شريط المكتب نفسه (نفس العقل الذي يرد في تيليجرام) ويفتح تبويب المكتب لعرض الرد
+  const cmd = document.getElementById('mapCmd');
+  if (cmd) {
+    const ask = (q) => {
+      const inp = document.getElementById('cmdInput'), bar = document.getElementById('cmdBar');
+      if (!q || !inp || !bar || inp.disabled) return;
+      const b = document.querySelector('nav button[data-tab="office"]'); if (b) b.click();
+      inp.value = q; bar.requestSubmit();
+    };
+    cmd.onsubmit = (e) => { e.preventDefault(); const i = document.getElementById('mapCmdInput'); const q = i.value.trim(); i.value = ''; ask(q); };
+    cmd.querySelectorAll('[data-q]').forEach((a) => { a.onclick = () => ask(a.dataset.q); });
   }
   window.SirajMap = { update };
   window.addEventListener('resize', () => requestAnimationFrame(drawLines));
