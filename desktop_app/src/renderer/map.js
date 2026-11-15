@@ -57,19 +57,26 @@
     svg.setAttribute('viewBox', `0 0 ${g.width} ${g.height}`);
     const mid = (el) => { const r = el.getBoundingClientRect(); return { x: r.left - g.left + r.width / 2, y: r.top - g.top + r.height / 2 }; };
     const o = mid(core);
-    [[0.26, 0.34], [0.18, 0.24]].forEach(([rx, ry], i) => svg.appendChild(mk('ellipse', { cx: o.x, cy: o.y, rx: g.width * rx, ry: g.height * ry, fill: 'none', stroke: '#7aa2ff', 'stroke-opacity': i ? '.10' : '.16', 'stroke-width': '1', 'stroke-dasharray': i ? '2 9' : '' })));
-    const line = (x2, y2, col, delay, dur) => {
-      const d = `M${o.x},${o.y} L${x2},${y2}`;
-      svg.appendChild(mk('path', { d, fill: 'none', stroke: col, 'stroke-opacity': '.45', 'stroke-width': '1.3' }));
+    const line = (x1, y1, x2, y2, col, delay, dur, faint) => {
+      const d = `M${x1},${y1} L${x2},${y2}`;
+      svg.appendChild(mk('path', { d, fill: 'none', stroke: col, 'stroke-opacity': faint ? '.25' : '.45', 'stroke-width': '1.3', 'stroke-dasharray': faint ? '4 6' : '' }));
+      if (faint) return;
       svg.appendChild(mk('path', { d, fill: 'none', stroke: col, 'stroke-opacity': '.95', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-dasharray': '3 26', class: 'mflow', style: `animation-delay:${delay}s;animation-duration:${dur}s` }));
       const dot = mk('circle', { r: '3', fill: col });
       dot.appendChild(mk('animateMotion', { path: d, dur: (dur * 1.6) + 's', begin: delay + 's', repeatCount: 'indefinite', keyPoints: '0;1;0', keyTimes: '0;.5;1', calcMode: 'linear' }));
       svg.appendChild(dot);
     };
-    grid.querySelectorAll('.nnode .nring, .nhead .nring').forEach((el, i) => {
-      const c = mid(el), col = getComputedStyle(el).getPropertyValue('--c').trim() || '#60a5fa';
-      line(c.x, c.y, col, (i * 0.37) % 3, 3 + (i % 3) * 0.6);
-    });
+    const colOf = (el) => getComputedStyle(el).getPropertyValue('--c').trim() || '#60a5fa';
+    const dept = grid.querySelector('.ndept .nring');
+    if (dept) { // شجرة القسم: الإدارة ← القسم ← وكلاؤه، وخط خافت إلى النواة
+      const d = mid(dept), col = colOf(dept), h = grid.querySelector('.nhead .nring');
+      if (h) { const c = mid(h); line(c.x, c.y, d.x, d.y, '#fde68a', 0, 3); }
+      grid.querySelectorAll('.nsub .nring').forEach((el, i) => { const c = mid(el); line(d.x, d.y, c.x, c.y, col, (i * 0.4) % 3, 2.6 + (i % 3) * 0.5); });
+      line(d.x, d.y, o.x, o.y, '#ff7a45', 0, 3, true);
+      return;
+    }
+    [[0.26, 0.34], [0.18, 0.24]].forEach(([rx, ry], i) => svg.appendChild(mk('ellipse', { cx: o.x, cy: o.y, rx: g.width * rx, ry: g.height * ry, fill: 'none', stroke: '#7aa2ff', 'stroke-opacity': i ? '.10' : '.16', 'stroke-width': '1', 'stroke-dasharray': i ? '2 9' : '' })));
+    grid.querySelectorAll('.nnode .nring, .nhead .nring').forEach((el, i) => { const c = mid(el); line(o.x, o.y, c.x, c.y, colOf(el), (i * 0.37) % 3, 3 + (i % 3) * 0.6); });
   }
 
   // نواة الجزيئات: كرة نقاط تدور ببطء (تتوقف حين تكون الخريطة مخفية)
@@ -100,6 +107,50 @@
       `<div class="nlab"><b>${esc(m.t)}</b><small>${num(on)} من ${num(m.ag.length)} يعمل · <u class="${on ? 'on' : ''}"></u> ${on ? 'متصل' : 'متوقف'}</small><em><big>${esc(m.k[0])}</big> ${esc(m.k[1])}</em></div></div>`;
   }
 
+  // شجرة القسم: القسم في الأعلى ووكلاؤه في صف تحته بحالاتهم ومفاتيحهم الحقيقية
+  function treeHtml(m) {
+    const n = m.ag.length, on = m.ag.filter((a) => a[1] === 'on').length;
+    const subs = m.ag.map(([label, s, key], j) => {
+      const left = 50 + (j - (n - 1) / 2) * 15;
+      const chip = s === 'on' ? 'يعمل' : s === 'soon' ? 'قريباً' : 'متوقف';
+      const tog = key ? `<button class="mtg ${s === 'on' ? 'on' : ''} live" data-key="${key}" title="تشغيل / إيقاف"></button>` : '';
+      return `<div class="nsub ${s}" style="--c:${m.c};left:${left.toFixed(2)}%;top:63%" data-go="${GO[m.n]}" data-state="${s}" data-label="${esc(label)}"><div class="nring" style="--c:${m.c}"><span>${s === 'soon' ? '⏳' : '🤖'}</span></div><div class="nlab"><b>${esc(label)}</b><em class="nchip ${s}">${chip}</em>${tog}</div></div>`;
+    }).join('');
+    return `<div class="nnode ndept sel" style="--c:${m.c};left:50%;top:33%" data-n="${m.n}" title="رجوع للنواة"><div class="nring" style="--c:${m.c}"><span>${ICON[m.n] || '●'}</span></div>` +
+      `<div class="nlab"><b>${esc(m.t)}</b><small>${num(on)} من ${num(n)} يعمل · ${esc(m.tag)}</small><em><big>${esc(m.k[0])}</big> ${esc(m.k[1])}</em></div></div>` + subs +
+      `<div class="ncorebox nback" data-back="1" title="رجوع للنواة"><canvas class="ncore" width="200" height="200"></canvas><div class="ncap"><small>‹ رجوع للنواة</small></div></div>`;
+  }
+
+  // محادثة القسم: نفس عقل المكتب (assistant:ask) مع توجيه الطلب للقسم. لكل قسم سجله.
+  const chats = {}; let chatBusy = false, draft = '';
+  function chatHtml(m) {
+    const log = chats[m.n] || [];
+    const msgs = log.map((c) => c.role === 'user' ? `<div class="nm me">${esc(c.text)}</div>`
+      : `<div class="nm"><b>${esc(c.agent || m.t)}</b>${esc(c.text).replace(/\n/g, '<br>')}${c.more ? `<a data-go="office">${esc(c.more)} ‹</a>` : ''}</div>`).join('') ||
+      `<div class="nhint">اسأل قسم «${esc(m.t)}» مباشرة.<br><a data-cq="ما حالة القسم الآن؟">ما حالة القسم الآن؟</a><a data-cq="ما الذي ينتظر موافقتي هنا؟">ما الذي ينتظر موافقتي هنا؟</a></div>`;
+    return `<div class="nside nfeed nchat" style="--c:${m.c}"><h4>محادثة · ${esc(m.t)}</h4><div class="nmsgs">${msgs}</div>` +
+      `<form class="nchatf"><input autocomplete="off" placeholder="اكتب للقسم…" ${chatBusy ? 'disabled' : ''}><button type="submit" ${chatBusy ? 'disabled' : ''}>›</button></form></div>`;
+  }
+  async function chatSend(m, q) {
+    q = String(q || '').trim(); if (!q || chatBusy) return;
+    const log = chats[m.n] || (chats[m.n] = []);
+    const history = log.slice(-6).map((c) => ({ role: c.role === 'user' ? 'user' : 'office', text: c.text }));
+    log.push({ role: 'user', text: q }, { role: 'ag', text: 'أفكر…', wait: true });
+    chatBusy = true; draft = ''; render();
+    let out;
+    try {
+      const r = await window.api.call('assistant:ask', { text: `(الطلب موجّه إلى قسم «${m.t}») ${q}`, attachments: [], history });
+      if (r.ok) {
+        const d = r.data || {}, card = d.proposal || (d.proposals && d.proposals.length), more = card ? 'بطاقة الموافقة في المكتب' : d.doc ? 'الملف جاهز في المكتب' : '';
+        out = { role: 'ag', agent: d.agent, text: String(d.reply || ''), more };
+        if (card && typeof refresh === 'function') { try { await refresh(); } catch {} }
+      } else out = { role: 'ag', text: '⚠ تعذّر الرد: ' + String(r.error || '').slice(0, 200) };
+    } catch (e) { out = { role: 'ag', text: '⚠ تعذّر الرد: ' + String(e.message || e).slice(0, 200) }; }
+    const i = log.findIndex((c) => c.wait); if (i >= 0) log.splice(i, 1, out); else log.push(out);
+    while (log.length > 30) log.shift();
+    chatBusy = false; render();
+  }
+
   function render() {
     const st = last.state; if (!st) return;
     const cards = model(st, last.ct, last.odoo, last.visits);
@@ -119,19 +170,31 @@
       `</ul><h4>النشاط الحي <u class="nlive"></u></h4><ul class="nlog">` +
       ((st.log || []).slice(0, 9).map((l) => `<li><time>${hhmm(l.at)}</time>${esc(String(l.msg || '').slice(0, 90))}</li>`).join('') || '<li class="none">لا نشاط بعد</li>') + '</ul></div>';
     grid.classList.add('neon');
-    grid.innerHTML =
-      `<div class="nhead" data-go="office" title="افتح المكتب"><div class="nring" style="--c:#fde68a"><img src="center-art.webp" alt=""></div><div class="nlab"><b>شعلة الجزيرة</b><small>الإدارة</small></div></div>` +
-      `<div class="ncorebox" data-go="office" title="افتح المكتب"><canvas class="ncore" width="440" height="440"></canvas><div class="ncap"><b>نواة سراج</b><small>${num(live)} وكيلاً يعمل · ${num(soonN)} قريباً · ${num(cards.length)} أقسام</small></div></div>` +
-      cards.map((m, i) => nodeHtml(m, i, cards.length)).join('') + stats + feed +
-      (cur ? `<div class="ndetail"><button class="nclose" title="إغلاق">✕</button>${cardHtml(cur)}</div>` : '');
+    const typing = document.activeElement && document.activeElement.closest && document.activeElement.closest('.nchatf');
+    const head = `<div class="nhead" data-go="office" title="افتح المكتب"><div class="nring" style="--c:#fde68a"><img src="center-art.webp" alt=""></div><div class="nlab"><b>شعلة الجزيرة</b><small>الإدارة</small></div></div>`;
+    grid.classList.toggle('tree', !!cur);
+    grid.innerHTML = head + (cur
+      ? treeHtml(cur) + stats + chatHtml(cur)
+      : `<div class="ncorebox" data-go="office" title="افتح المكتب"><canvas class="ncore" width="440" height="440"></canvas><div class="ncap"><b>نواة سراج</b><small>${num(live)} وكيلاً يعمل · ${num(soonN)} قريباً · ${num(cards.length)} أقسام</small></div></div>` +
+        cards.map((m, i) => nodeHtml(m, i, cards.length)).join('') + stats + feed);
+    const bk = grid.querySelector('[data-back]'); if (bk) bk.onclick = () => { sel = null; render(); };
+    const cf = grid.querySelector('.nchatf');
+    if (cf && cur) {
+      const inp = cf.querySelector('input'), box = grid.querySelector('.nmsgs');
+      inp.value = draft; inp.oninput = () => { draft = inp.value; };
+      if (typing && !chatBusy) { inp.focus(); inp.setSelectionRange(draft.length, draft.length); }
+      box.scrollTop = box.scrollHeight;
+      cf.onsubmit = (e) => { e.preventDefault(); chatSend(cur, inp.value); };
+      grid.querySelectorAll('[data-cq]').forEach((a) => { a.onclick = () => chatSend(cur, a.dataset.cq); });
+    }
     const go = (tab) => { const b = document.querySelector(`nav button[data-tab="${tab}"]`); if (b) b.click(); };
-    grid.querySelectorAll('.nnode').forEach((n) => { n.onclick = () => { const k = Number(n.dataset.n); sel = sel === k ? null : k; render(); }; });
-    grid.querySelectorAll('[data-sel]').forEach((n) => { n.onclick = () => { const k = Number(n.dataset.sel); sel = sel === k ? null : k; render(); }; });
+    grid.querySelectorAll('.nnode').forEach((n) => { n.onclick = () => { const k = Number(n.dataset.n); sel = sel === k ? null : k; draft = ''; render(); }; });
+    grid.querySelectorAll('[data-sel]').forEach((n) => { n.onclick = () => { const k = Number(n.dataset.sel); sel = sel === k ? null : k; draft = ''; render(); }; });
     const cl = grid.querySelector('.nclose'); if (cl) cl.onclick = () => { sel = null; render(); };
     grid.querySelectorAll('[data-go]').forEach((h) => {
       h.onclick = (e) => {
         if (e.target.closest('.mtg.live')) return;
-        const row = h.closest('.mrow');
+        const row = h.closest('.mrow, .nsub');
         if (row && row.dataset.state === 'soon') { if (typeof toast === 'function') toast(`«${row.dataset.label}» قيد التطوير`); return; }
         if (row && typeof toast === 'function') toast(`${row.dataset.label}: ${row.dataset.state === 'on' ? 'مفعّل' : 'غير مفعّل'}`);
         go(h.dataset.go);

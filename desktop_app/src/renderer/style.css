@@ -323,3 +323,34 @@ main:has(#map.active) { padding: 14px 20px 12px; overflow: auto; }
 .neon .ndetail { inset-inline-start: 14px; top: 14px; width: 236px; }
 .neon .ndetail .mkpi big { font-size: 26px; }
 @media (max-width: 1180px) { .neon .nside { display: none; } }
+
+/* ---------- المرحلة 3: شجرة القسم والمحادثة ---------- */
+.neon .nsub { position: absolute; transform: translate(-50%, -50%); z-index: 1; display: flex; flex-direction: column; align-items: center; text-align: center; cursor: pointer; }
+@keyframes nfade { from { opacity: 0; } }
+.neon .nsub .nring { width: 52px; height: 52px; }
+.neon .nsub .nring span { font-size: 20px; }
+.neon .nsub.off .nring, .neon .nsub.soon .nring { filter: grayscale(.85) brightness(.75); animation: none; }
+.neon .nsub.soon .nring { border-style: dashed; }
+.neon .nsub:hover .nring { transform: scale(1.12); }
+.neon .nsub .nlab { width: 150px; white-space: normal; margin-top: 10px; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.neon .nsub .nlab b { font-size: 12.5px; color: #e6edff; text-shadow: none; }
+.neon .nchip { font-style: normal; font-size: 10.5px; padding: 1px 9px; border-radius: 10px; border: 1px solid #5b6790; color: #a9b8e0; }
+.neon .nchip.on { border-color: #4ade80; color: #86efac; background: rgba(74,222,128,.12); box-shadow: 0 0 8px rgba(74,222,128,.35); }
+.neon .nchip.soon { border-style: dashed; }
+.neon .ndept { top: 33%; } .neon .ndept .nring { width: 70px; height: 70px; }
+.neon .nback { top: 89%; opacity: .85; } .neon .nback:hover { opacity: 1; }
+.neon .nback canvas.ncore { width: 74px; height: 74px; }
+.neon .nback .ncap { margin-top: 0; } .neon .nback .ncap small { color: #c9d5f3; }
+.neon .nchat { border-color: color-mix(in srgb, var(--c) 60%, transparent); box-shadow: 0 0 26px color-mix(in srgb, var(--c) 22%, transparent), inset 0 0 24px color-mix(in srgb, var(--c) 8%, transparent); }
+.neon .nchat h4 { color: var(--c); }
+.neon .nmsgs { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 7px; padding-inline-end: 2px; scrollbar-width: thin; }
+.neon .nm { font-size: 12px; line-height: 1.5; color: #dbe5ff; padding: 6px 8px; border-radius: 8px; border: 1px solid color-mix(in srgb, var(--c) 35%, transparent); background: color-mix(in srgb, var(--c) 8%, transparent); overflow-wrap: anywhere; }
+.neon .nm b { display: block; font-size: 10.5px; color: var(--c); margin-bottom: 2px; }
+.neon .nm.me { align-self: flex-start; background: rgba(120,160,255,.16); border-color: rgba(120,160,255,.35); color: #fff; }
+.neon .nm a, .neon .nhint a { display: block; margin-top: 5px; font-size: 11px; color: var(--c); cursor: pointer; }
+.neon .nm a:hover, .neon .nhint a:hover { text-decoration: underline; }
+.neon .nhint { font-size: 12px; color: #8ea2d4; line-height: 1.6; }
+.neon .nchatf { display: flex; gap: 6px; margin-top: 8px; }
+.neon .nchatf input { flex: 1; min-width: 0; background: rgba(10,16,44,.8); border: 1px solid color-mix(in srgb, var(--c) 50%, transparent); border-radius: 7px; color: #eaf1ff; font: inherit; font-size: 12.5px; padding: 6px 8px; outline: 0; }
+.neon .nchatf button { width: 32px; border-radius: 7px; border: 1px solid var(--c); background: color-mix(in srgb, var(--c) 22%, transparent); color: #fff; font-size: 16px; cursor: pointer; }
+.neon .nchatf button:disabled, .neon .nchatf input:disabled { opacity: .5; cursor: default; }
