@@ -17,10 +17,10 @@ const STATIC = {
 const PAIR_HTML = `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>ربط سراج</title>
 <style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#090d26;color:#eaf1ff;font-family:'Segoe UI',Tahoma,sans-serif}
 form{width:min(320px,86vw);padding:22px;border:1px solid rgba(120,160,255,.4);border-radius:14px;background:rgba(30,44,110,.3);text-align:center}
-input{width:100%;box-sizing:border-box;margin:14px 0;padding:12px;font-size:22px;letter-spacing:4px;text-align:center;text-transform:uppercase;border-radius:8px;border:1px solid rgba(120,160,255,.5);background:#0a1030;color:#fff}
+input{width:100%;box-sizing:border-box;margin:14px 0;padding:12px;font-size:22px;letter-spacing:6px;text-align:center;border-radius:8px;border:1px solid rgba(120,160,255,.5);background:#0a1030;color:#fff}
 button{width:100%;padding:11px;font-size:16px;border-radius:8px;border:1px solid #7aa2ff;background:rgba(80,120,255,.35);color:#fff}p{color:#9fb2e0;font-size:13px;margin:0}#e{color:#fca5a5;min-height:18px;margin-top:10px}</style></head>
-<body><form id="f"><h2>نواة سراج</h2><p>اكتب رمز الربط الظاهر في سراج على الكمبيوتر<br>(أيقونة سراج بجانب الساعة ← وصول الجوال)</p>
-<input id="c" maxlength="8" autocomplete="off" autocapitalize="characters" required><button>ربط</button><p id="e"></p></form>
+<body><form id="f"><h2>نواة سراج</h2><p>اكتب رمز الربط (6 أرقام) الظاهر في سراج على الكمبيوتر<br>(زر «📱 الجوال» أعلى الخريطة)</p>
+<input id="c" maxlength="6" inputmode="numeric" pattern="[0-9٠-٩]*" autocomplete="off" dir="ltr" required><button>ربط</button><p id="e"></p></form>
 <script>document.getElementById('f').onsubmit=async(e)=>{e.preventDefault();const r=await fetch('/pair',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:document.getElementById('c').value})});const j=await r.json().catch(()=>({}));if(j.ok)location.href='/';else document.getElementById('e').textContent=j.error||'رمز غير صحيح';};</script></body></html>`;
 
 function create({ store, handlers, publicState, mediaDir, cardInfo, log }) {
@@ -30,8 +30,9 @@ function create({ store, handlers, publicState, mediaDir, cardInfo, log }) {
   const clients = new Set();
   const cfg = () => { const d = store.get(); if (!d.mobile || typeof d.mobile !== 'object') d.mobile = {}; if (!d.mobile.port) d.mobile.port = 8765; return d.mobile; };
   const eq = (a, b) => { const A = Buffer.from(String(a)), B = Buffer.from(String(b)); return A.length === B.length && crypto.timingSafeEqual(A, B); };
-  const newCode = () => Array.from(crypto.randomBytes(8), (b) => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[b % 32]).join('');
-  const ensureSecrets = () => { const m = cfg(); if (!m.code) m.code = newCode(); if (!/^[a-f0-9]{64}$/.test(m.session || '')) m.session = crypto.randomBytes(32).toString('hex'); };
+  const newCode = () => String(crypto.randomInt(0, 1000000)).padStart(6, '0'); // 6 أرقام: لا ينقلب ترتيبها في النص العربي
+  const digits = (v) => String(v || '').replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x660)).replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x6f0)).replace(/\D/g, '');
+  const ensureSecrets = () => { const m = cfg(); if (!/^\d{6}$/.test(m.code || '')) m.code = newCode(); if (!/^[a-f0-9]{64}$/.test(m.session || '')) m.session = crypto.randomBytes(32).toString('hex'); };
 
   // أي حفظ أو سجل في التطبيق يوقظ الجوال ليحدّث نفسه
   const bump = () => { if (!clients.size || timer) return; timer = setTimeout(() => { timer = null; for (const c of clients) { try { c.write('data: change\n\n'); } catch { clients.delete(c); } } }, 400); };
@@ -88,7 +89,7 @@ function create({ store, handlers, publicState, mediaDir, cardInfo, log }) {
       if (!sameOrigin(req) || !isJson(req)) return json(403, { ok: false, error: 'مرفوض' });
       if (Date.now() < lockedUntil) return json(429, { ok: false, error: 'محاولات كثيرة. انتظر 10 دقائق.' });
       const b = await readJson(req).catch(() => ({}));
-      if (!eq(String(b.code || '').trim().toUpperCase(), cfg().code || newCode())) {
+      if (!eq(digits(b.code), cfg().code || newCode())) {
         if (++fails >= 6) { fails = 0; lockedUntil = Date.now() + 10 * 60 * 1000; log('📱 الجوال: أُوقف الربط 10 دقائق بعد محاولات خاطئة'); }
         return json(401, { ok: false, error: 'رمز غير صحيح' });
       }
@@ -142,13 +143,14 @@ function create({ store, handlers, publicState, mediaDir, cardInfo, log }) {
   }
   function stop() { for (const c of clients) { try { c.end(); } catch { /* مغلق */ } } clients.clear(); if (server) { server.close(); if (server.closeAllConnections) server.closeAllConnections(); server = null; } }
   function setEnabled(on) { cfg().enabled = !!on; store.save(); if (on) start(); else stop(); }
+  function unlock() { fails = 0; lockedUntil = 0; } // فتح نافذة الربط من الكمبيوتر يفك حظر المحاولات
   function reset() { const m = cfg(); m.code = newCode(); m.session = crypto.randomBytes(32).toString('hex'); store.save(); for (const c of clients) { try { c.end(); } catch { /* مغلق */ } } clients.clear(); }
   function info() {
     const m = cfg(), ips = [];
     for (const list of Object.values(os.networkInterfaces())) for (const a of list || []) if (a.family === 'IPv4' && !a.internal) ips.push(a.address);
     return { enabled: !!m.enabled, running: !!server, port: m.port, code: m.code || '', urls: ips.map((ip) => `http://${ip}:${m.port}`) };
   }
-  return { start, stop, setEnabled, reset, info };
+  return { start, stop, setEnabled, reset, unlock, info };
 }
 
 module.exports = { create };
