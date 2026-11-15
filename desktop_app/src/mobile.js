@@ -13,7 +13,11 @@ const STATIC = {
   '/map.js': ['map.js', 'text/javascript; charset=utf-8'],
   '/center-art.webp': ['center-art.webp', 'image/webp'],
   '/logo-approved.jpg': ['logo-approved.jpg', 'image/jpeg'],
+  '/icon.png': ['../icon.png', 'image/png'],
 };
+// ملف التثبيت كتطبيق (إضافة إلى الشاشة الرئيسية): يفتح بملء الشاشة بلا شريط المتصفح
+const MANIFEST = JSON.stringify({ name: 'نواة سراج', short_name: 'سراج', lang: 'ar', dir: 'rtl', start_url: '/', scope: '/', display: 'standalone', background_color: '#090d26', theme_color: '#090d26',
+  icons: [{ src: '/icon.png', sizes: '256x256', type: 'image/png', purpose: 'any' }] });
 const PAIR_HTML = `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>ربط سراج</title>
 <style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#090d26;color:#eaf1ff;font-family:'Segoe UI',Tahoma,sans-serif}
 form{width:min(320px,86vw);padding:22px;border:1px solid rgba(120,160,255,.4);border-radius:14px;background:rgba(30,44,110,.3);text-align:center}
@@ -79,11 +83,12 @@ function create({ store, handlers, publicState, mediaDir, cardInfo, log }) {
   async function onReq(req, res) {
     const p = new URL(req.url, 'http://x').pathname;
     const head = { 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'X-Frame-Options': 'DENY', 'Cache-Control': 'no-store',
-      'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'" };
+      'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; manifest-src 'self'; frame-ancestors 'none'" };
     const json = (code, obj, extra) => { res.writeHead(code, { ...head, 'Content-Type': 'application/json; charset=utf-8', ...(extra || {}) }); res.end(JSON.stringify(obj)); };
     const ck = /(?:^|;\s*)sk=([a-f0-9]{64})(?:;|$)/.exec(req.headers.cookie || '');
     const authed = !!(ck && cfg().session && eq(ck[1], cfg().session));
 
+    if (p === '/manifest.webmanifest' && req.method === 'GET') { res.writeHead(200, { ...head, 'Content-Type': 'application/manifest+json; charset=utf-8' }); return res.end(MANIFEST); }
     if (p === '/pair' && req.method === 'GET') { res.writeHead(200, { ...head, 'Content-Type': 'text/html; charset=utf-8' }); return res.end(PAIR_HTML); }
     if (p === '/pair' && req.method === 'POST') {
       if (!sameOrigin(req) || !isJson(req)) return json(403, { ok: false, error: 'مرفوض' });
