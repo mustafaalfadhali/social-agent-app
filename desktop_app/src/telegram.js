@@ -213,11 +213,19 @@ function create({ store, dataDir, commander, payments, whatsapp, agentApi, log, 
     const fileId = m.photo && m.photo.length ? m.photo[m.photo.length - 1].file_id
       : m.document && (/^image\//.test(m.document.mime_type || '') || m.document.mime_type === 'application/pdf') ? m.document.file_id : null;
     if (fileId) {
-      await send(m.chat.id, 'جارِ قراءة الحوالة…');
+      await send(m.chat.id, 'جارِ قراءة الملف…');
       const buf = await download(fileId);
       const saved = payments.saveInbox(dataDir, (m.document && m.document.file_name) || 'حوالة', buf);
       const r = await payments.propose({ file: payments.resolveInbox(dataDir, saved.id), name: saved.name }, store.get(), store);
       const p = r.proposal && findProposal(r.proposal.id);
+      if (!p && r.notTransfer) { // ملف ليس حوالة (فاتورة/لقطة شاشة): نفهمه ضمن المحادثة بدل رفضه
+        const q = `(أرسل المالك ملفاً ليس حوالة، محتواه: ${r.notes || 'غير واضح'}. أجب نصياً فقط واربطه بالمحادثة السابقة) ${text}`.trim();
+        history.push({ role: 'user', text: q }); while (history.length > 8) history.shift();
+        const r2 = await commander.ask({ text: q, history: history.slice(0, -1) }, store.get(), store, whatsapp);
+        history.push({ role: 'office', text: r2.reply }); while (history.length > 8) history.shift();
+        await send(m.chat.id, `${r2.agent === 'عام' ? '' : '«' + r2.agent + '»\n'}${r2.reply}`);
+        return;
+      }
       if (!p) { await send(m.chat.id, r.reply); return; }
       const cd = card(p); await send(m.chat.id, r.reply + '\n\n' + cd.text, cd.keyboard);
       return;

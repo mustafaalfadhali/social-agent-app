@@ -12,7 +12,7 @@ let visitsCache = { at: 0, data: null };
 async function odooData(cfg) {
   if (!cfg.apiKey) return { connected: false };
   if (Date.now() - odooCache.at < 120000 && odooCache.data) return odooCache.data;
-  try { odooCache = { at: Date.now(), data: { connected: true, ...(await odoo.summary(cfg)) } }; }
+  try { odooCache = { at: Date.now(), data: { connected: true, ...(await odoo.summary(cfg)), invoices_this_year: await odoo.yearInvoices(cfg) } }; }
   catch (e) { odooCache = { at: Date.now(), data: { connected: true, error: e.message } }; }
   return odooCache.data;
 }
@@ -81,6 +81,7 @@ async function ask({ text, history = [] }, d, store, wa) {
     '- فواتير الشركة تصدر من «شعلة الخدمات» فقط. والعقود قد تكون باسم الخدمات أو الجزيرة.',
     '- التاريخ الماضي في العقود يعني «تم التجديد» وليس «منتهياً».',
     '- أنت لا تنفّذ أي تغيير بنفسك. للنشر أو تعديل العقود أعد proposal يلخّص ما سيُنفَّذ وقل إنه مقترح.',
+    '- accounting.invoices_this_year فيها كل فواتير السنة (الرقم | العميل | التاريخ | الإجمالي | الحالة). ابحث فيها بالرقم أو العميل أو التاريخ قبل أن تقول إن فاتورة غير موجودة، ولا تكتفِ بقائمة recent.',
     '- إصدار فاتورة: أعد accounting = {"type":"create_invoice","customer":"اسم العميل كما ذكره المالك","lines":[{"name":"وصف البند (مع الفرع إن ذُكر)","qty":عدد,"price":سعر الوحدة قبل الضريبة}]}. الضريبة 15% يضيفها النظام. الفواتير من «شعلة الخدمات».',
     '- تسجيل دفعة نقدية أو بنكية على فاتورة/فواتير: أعد accounting = {"type":"register_payment","invoices":["رقم كما ذكره المالك أو INV/2026/00074"],"method":"cash"|"bank","amount":رقم اختياري لفاتورة واحدة,"date":"YYYY-MM-DD" اختياري}. «نقدي/كاش» = cash. إن لم يذكر المالك الفاتورة بوضوح فاسأله ولا ترسل accounting.',
     '- عند accounting اكتب في reply جملة واحدة فقط («جارِ تجهيز بطاقة الموافقة»)؛ النظام هو من ينشئ البطاقة ويعرض التفاصيل. لا تقل إنه نُفِّذ ولا إنه ينتظر تفعيل الموافقات. proposal = null.',

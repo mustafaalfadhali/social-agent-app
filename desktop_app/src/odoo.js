@@ -80,6 +80,14 @@ async function summary(cfg, now = new Date()) {
   };
 }
 
+// كل فواتير السنة بصيغة مختصرة (ليبحث فيها المكتب عند السؤال عن فاتورة قديمة)
+async function yearInvoices(cfg, now = new Date()) {
+  const c = client(cfg);
+  const rows = await c.call('account.move', 'search_read', [[['move_type', '=', 'out_invoice'], ['state', '=', 'posted'], ['invoice_date', '>=', `${now.getFullYear()}-01-01`]]],
+    { fields: ['name', 'partner_id', 'invoice_date', 'amount_total', 'amount_residual'], order: 'invoice_date desc, id desc', limit: 400 });
+  return rows.map((i) => `${i.name} | ${i.partner_id ? i.partner_id[1] : '—'} | ${i.invoice_date} | ${r2(i.amount_total)} | ${i.amount_residual > 0 ? 'باقي ' + r2(i.amount_residual) : 'مدفوعة'}`);
+}
+
 // ---------- قراءة: الفواتير المفتوحة ودفاتر البنك ----------
 async function openInvoices(cfg) {
   const c = client(cfg);
@@ -206,4 +214,4 @@ async function statementData(cfg, partnerId) {
   return { partner, lines, company, journals };
 }
 
-module.exports = { test, summary, checkUrl, openInvoices, bankJournal, createInvoice, findPartnersLoose, invoiceInfo, registerPayment, findPartners, lastInvoiceName, invoiceDoc, statementData };
+module.exports = { test, summary, yearInvoices, checkUrl, openInvoices, bankJournal, createInvoice, findPartnersLoose, invoiceInfo, registerPayment, findPartners, lastInvoiceName, invoiceDoc, statementData };

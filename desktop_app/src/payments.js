@@ -77,6 +77,7 @@ const PROMPT = [
   '"payer_name": اسم المحوِّل (الدافع), "receiver_name": اسم المستلم, "bank": اسم البنك, "reference": رقم المرجع أو العملية,',
   '"confidence": "high" أو "medium" أو "low", "notes": ملاحظة قصيرة إن وجد غموض}.',
   'لا تخمّن: ضع null لأي حقل لا يظهر بوضوح.',
+  'إن لم يكن الملف حوالة (مثل فاتورة أو كشف أو لقطة شاشة) فاجعل is_transfer=false واكتب في notes نوع المستند وأهم ما فيه: رقم الفاتورة، العميل، التاريخ، الإجمالي، وحالة الدفع إن ظهرت.',
 ].join(' ');
 
 // ---------- المقترحات ----------
@@ -86,7 +87,7 @@ async function propose({ file, name }, d, store) {
   if (!d.odoo.apiKey) return { reply: 'اربط أودو أولاً من تبويب الحسابات حتى أطابق الحوالة مع الفواتير.', proposal: null };
   const ex = cleanExtract(await claude.readImageJson({ imagePath: file, prompt: PROMPT, settings: d.settings }));
   if (!ex.isTransfer || !ex.amount) {
-    return { reply: 'لم أجد مبلغ حوالة واضحاً في هذا الملف' + (ex.notes ? ` (${ex.notes})` : '') + '. أرسل صورة أوضح لإيصال الحوالة.', proposal: null };
+    return { reply: 'لم أجد مبلغ حوالة واضحاً في هذا الملف' + (ex.notes ? ` (${ex.notes})` : '') + '. أرسل صورة أوضح لإيصال الحوالة.', proposal: null, notTransfer: !ex.isTransfer, notes: ex.notes };
   }
   const invoices = await odoo.openInvoices(d.odoo);
   const journal = await odoo.bankJournal(d.odoo);
