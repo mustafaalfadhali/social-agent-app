@@ -27,7 +27,8 @@ const docsDir = path.join(dataDir, 'documents');
 
 if (!TEST_DIR && !app.requestSingleInstanceLock()) app.quit();
 
-let win, tray, quitting = false;
+let win, tray, mobile, quitting = false;
+const handlers = {}; // نفس دوال القنوات، ليستعملها خادم الجوال بقائمة محدودة
 
 function createWindow(show = true) {
   win = new BrowserWindow({
@@ -51,10 +52,24 @@ function createTray() {
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'فتح سراج', click: () => win.show() },
     { label: 'تشغيل التوليد اليومي الآن', click: () => agent.dailyRun() },
+    { label: 'وصول الجوال…', click: () => mobileDialog() },
     { type: 'separator' },
     { label: 'خروج', click: () => { quitting = true; app.quit(); } },
   ]));
   tray.on('click', () => win.show());
+}
+
+// نافذة «وصول الجوال»: تشغيل/إيقاف الخادم، وعرض العنوان ورمز الربط (لمرة واحدة)
+async function mobileDialog() {
+  if (!mobile) return;
+  const i = mobile.info();
+  const detail = i.enabled
+    ? `افتح من متصفح الجوال (نفس شبكة الواي فاي):\n${i.urls.join('\n') || 'لا يوجد عنوان شبكة'}\n\nرمز الربط: ${i.code}\n(يُستعمل مرة واحدة ثم يتغير)\n\nإن لم يفتح: اسمح لسراج في جدار حماية ويندوز (الشبكات الخاصة).`
+    : 'واجهة الجوال مُطفأة. عند تشغيلها يفتح سراج منفذاً على شبكتك المحلية، ولا يدخل أحد إلا برمز الربط.';
+  const r = await dialog.showMessageBox(win, { type: 'info', title: 'وصول الجوال', message: i.enabled ? (i.running ? 'واجهة الجوال تعمل ✅' : 'مفعّلة لكن الخادم لم يعمل ⚠') : 'واجهة الجوال مُطفأة', detail,
+    buttons: [i.enabled ? 'إيقاف' : 'تشغيل', 'رمز جديد وفصل كل الأجهزة', 'إغلاق'], defaultId: 2, cancelId: 2, noLink: true });
+  if (r.response === 0) { mobile.setEnabled(!i.enabled); store.log(i.enabled ? '📱 أُوقفت واجهة الجوال' : '📱 شُغّلت واجهة الجوال'); return mobileDialog(); }
+  if (r.response === 1) { mobile.reset(); store.log('📱 رمز ربط جديد وفُصلت كل الأجهزة'); return mobileDialog(); }
 }
 
 function applyAutoStart() {
@@ -89,6 +104,7 @@ function publicState() {
 }
 
 function handle(name, fn) {
+  handlers[name] = fn;
   ipcMain.handle(name, async (e, ...args) => {
     if (!sec.trustedSender(e)) return { ok: false, error: 'مرفوض' };
     try { return { ok: true, data: await fn(...args) }; }
@@ -298,6 +314,8 @@ app.whenReady().then(() => {
   wa = require('./whatsapp').create({ store, claude: require('./claude'), log: (m) => store.log(m) });
   tg = telegramBot.create({ store, dataDir, commander, payments, whatsapp: wa, agentApi: agent, log: (m) => store.log(m) });
   tg.start();
+  mobile = require('./mobile').create({ store, handlers, publicState, log: (m) => store.log(m) });
+  mobile.start();
   agent.setNotifier((t) => tg.notifyText(t));
   agent.setReviewNotifier((p, img) => tg.notifyPost(p, img).catch((e) => store.log('تيليجرام: ' + String(e.message).slice(0, 100))));
   wa.start(); // يسحب رسائل واتساب كل 30 ثانية إذا كان الجسر مضبوطاً

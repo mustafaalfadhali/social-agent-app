@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#090d26">
+  <title>نواة سراج</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body { display: block; height: auto; min-height: 100vh; }
+    .tab.active { animation: none; }
+    #mtoast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); z-index: 9; padding: 8px 16px; border-radius: 10px; background: rgba(10,16,44,.95); border: 1px solid rgba(120,160,255,.5); color: #eaf1ff; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+    #mtoast.on { opacity: 1; }
+    #mconn { font-size: 11px; color: #fca5a5; margin-inline-start: 10px; }
+  </style>
+</head>
+<body>
+  <main>
+    <section id="map" class="tab active">
+      <div class="map-head"><div><small>// القوى العاملة الذكية <span id="mconn"></span></small><h1>نواة سراج<i></i></h1></div></div>
+      <div id="mapGrid" class="map-grid"></div>
+      <p class="map-note">اضغط أي قسم لعرض وكلائه ومحادثته · البيانات حيّة من سراج على الكمبيوتر</p>
+    </section>
+  </main>
+  <div id="mtoast"></div>
+  <script>
+    // نفس واجهة window.api في تطبيق الكمبيوتر، لكن عبر خادم سراج
+    window.api = { call: async (ch, ...args) => {
+      try {
+        const r = await fetch('/api', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ch, args }) });
+        if (r.status === 401) { location.href = '/pair'; return { ok: false, error: 'غير مصرّح' }; }
+        document.getElementById('mconn').textContent = '';
+        return await r.json();
+      } catch (e) { document.getElementById('mconn').textContent = '● غير متصل بسراج'; return { ok: false, error: 'تعذّر الاتصال بسراج (هل الكمبيوتر يعمل؟)' }; }
+    } };
+    let tt; function toast(t) { const e = document.getElementById('mtoast'); e.textContent = t; e.classList.add('on'); clearTimeout(tt); tt = setTimeout(() => e.classList.remove('on'), 2600); }
+    const S = { state: null };
+    async function refresh() { const r = await api.call('state'); if (!r.ok) return; S.state = r.data; SirajMap.update(S.state); }
+    async function slow() { // بيانات أبطأ (عقود، أودو، زيارات) تُجلب بالتتابع
+      if (!S.state) return;
+      const ct = await api.call('contracts:list'); if (ct.ok) SirajMap.update(S.state, ct.data);
+      if (S.state.odoo.hasKey) { const o = await api.call('odoo:summary'); SirajMap.update(S.state, undefined, o.ok ? o.data : { error: o.error }); }
+      if (S.state.visits.hasToken) { const v = await api.call('visits:summary'); SirajMap.update(S.state, undefined, undefined, v.ok ? v.data : { error: v.error }); }
+    }
+  </script>
+  <script src="map.js"></script>
+  <script>
+    refresh().then(slow);
+    try { new EventSource('/events').onmessage = () => refresh(); } catch (e) { setInterval(refresh, 15000); }
+    setInterval(slow, 120000);
+  </script>
+</body>
+</html>
