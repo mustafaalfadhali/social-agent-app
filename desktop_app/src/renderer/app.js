@@ -236,6 +236,14 @@ $('ctSearch').oninput = renderContracts; $('ctFilter').onchange = renderContract
 
 
 // ---- زيارات الفروع (قراءة فقط) ----
+function fillUb() { const u = state.urbackup || {}; $('ubUrl').value = u.url || ''; $('ubUser').value = u.user || ''; $('ubDays').value = u.days || 2; $('ubOn').checked = !!u.enabled; $('ubStatus').textContent = u.hasPass ? (u.enabled ? 'المراقبة تعمل ✅' : 'كلمة المرور محفوظة (المراقبة متوقفة)') : ''; }
+const ubForm = () => ({ url: $('ubUrl').value, user: $('ubUser').value, pass: $('ubPass').value, days: $('ubDays').value, enabled: $('ubOn').checked });
+$('btnUbSave').onclick = async () => { await call('urbackup:save', ubForm()); $('ubPass').value = ''; toast('تم الحفظ'); await refresh(); fillUb(); };
+$('btnUbTest').onclick = (e) => withBusy(e.target, async () => {
+  await call('urbackup:save', ubForm()); $('ubPass').value = '';
+  const r = await call('urbackup:test'); toast(`اتصال ناجح ✅ (${r.clients} أجهزة)`); await refresh(); fillUb();
+});
+$('btnUbOff').onclick = async () => { await call('urbackup:disconnect'); await refresh(); fillUb(); toast('تم فصل مراقبة UrBackup'); };
 let visitsData = null, visitsFetching = false;
 function fillVisits() { const v = state.visits; $('vsUrl').value = v.url; $('vsStatus').textContent = v.hasToken ? 'الرمز محفوظ' : ''; }
 async function loadVisits() {
@@ -400,7 +408,7 @@ $('cmdBar').onsubmit = async (e) => {
 
 (async () => {
   await refresh();
-  fillOdoo(); fillVisits(); fillWa(); renderTg(); loadOdoo(); loadVisits(); setInterval(loadOdoo, 120000); setInterval(loadVisits, 120000);
+  fillOdoo(); fillVisits(); fillUb(); fillWa(); renderTg(); loadOdoo(); loadVisits(); setInterval(loadOdoo, 120000); setInterval(loadVisits, 120000);
   loadContracts();
   fillSettings();
   checkClaude();

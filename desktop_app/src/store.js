@@ -11,7 +11,7 @@ const dec = (v) => {
   if (typeof v !== 'string' || !v.startsWith(PREFIX)) return v;
   try { return safeStorage.decryptString(Buffer.from(v.slice(PREFIX.length), 'base64')); } catch { return ''; }
 };
-const SECRETS = [['meta', 'appSecret'], ['meta', 'userToken'], ['tiktok', 'clientSecret'], ['tiktok', 'accessToken'], ['tiktok', 'refreshToken'], ['odoo', 'apiKey'], ['telegram', 'token'], ['visits', 'token'], ['wa', 'pullToken'], ['wa', 'token'], ['mobile', 'session'], ['mobile', 'code']];
+const SECRETS = [['meta', 'appSecret'], ['meta', 'userToken'], ['tiktok', 'clientSecret'], ['tiktok', 'accessToken'], ['tiktok', 'refreshToken'], ['odoo', 'apiKey'], ['telegram', 'token'], ['visits', 'token'], ['urbackup', 'pass'], ['wa', 'pullToken'], ['wa', 'token'], ['mobile', 'session'], ['mobile', 'code']];
 function transform(obj, fn) {
   for (const [a, b] of SECRETS) if (obj[a] && b in obj[a]) obj[a][b] = fn(obj[a][b]);
   if (obj.meta && Array.isArray(obj.meta.pages)) obj.meta.pages.forEach((p) => { if (p && 'token' in p) p.token = fn(p.token); });
@@ -37,6 +37,7 @@ const DEFAULTS = {
   odoo: { url: '', db: '', login: '', apiKey: '' },
   telegram: { token: '', chatId: 0, username: '' },
   visits: { url: 'https://branches.mustafa-server.vip', token: '' },
+  urbackup: { enabled: false, url: 'http://192.168.100.200:55414', user: 'siraj-monitor', pass: '', days: 2, fails: 0, state: {} }, // مراقبة النسخ الاحتياطي
   wa: { workerUrl: 'https://siraj-relay.mustafalive2022.workers.dev', pullToken: '', phoneId: '', token: '', convs: {}, seen: [] }, // واتساب: خدمة العملاء
   mobile: { enabled: false, port: 8765, code: '', session: '' }, // واجهة الجوال: مُطفأة افتراضياً
   proposals: [], // مقترحات تنتظر موافقة المالك (دفعات...)
@@ -61,6 +62,7 @@ function init(dir) {
     data.odoo = { ...DEFAULTS.odoo, ...saved.odoo };
     data.telegram = { ...DEFAULTS.telegram, ...saved.telegram };
     data.visits = { ...DEFAULTS.visits, ...saved.visits };
+    data.urbackup = { ...structuredClone(DEFAULTS.urbackup), ...saved.urbackup };
     data.wa = { ...structuredClone(DEFAULTS.wa), ...saved.wa };
     transform(data, dec);
     setImmediate(save); // ترحيل أي أسرار قديمة نصية إلى نسخة مشفّرة

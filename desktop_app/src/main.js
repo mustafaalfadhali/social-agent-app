@@ -15,6 +15,7 @@ const payments = require('./payments');
 const telegramBot = require('./telegram');
 const documents = require('./documents');
 const visits = require('./visits');
+const urbackup = require('./urbackup');
 let tg, wa;
 const sec = require('./security');
 
@@ -95,6 +96,7 @@ function publicState() {
     odoo: { url: d.odoo.url, db: d.odoo.db, login: d.odoo.login, hasKey: !!d.odoo.apiKey },
     proposals: (d.proposals || []).slice(0, 20),
     visits: { url: d.visits.url, hasToken: !!d.visits.token },
+    urbackup: { enabled: !!d.urbackup.enabled, url: d.urbackup.url, user: d.urbackup.user, hasPass: !!d.urbackup.pass, days: d.urbackup.days || 2 },
     wa: { workerUrl: d.wa.workerUrl, phoneId: d.wa.phoneId, hasToken: !!d.wa.token, hasBridgeToken: !!d.wa.pullToken, profile: { ...require('./whatsapp').DEFAULT_PROFILE, ...(d.wa.profile || {}) }, waiting: wa ? wa.status().waiting : 0 },
     telegram: { hasToken: !!d.telegram.token, paired: !!d.telegram.chatId, username: d.telegram.username || '' },
     media: d.media.map((m) => ({ ...m, url: 'file:///' + path.join(mediaDir, m.file).replace(/\\/g, '/') })),
@@ -155,6 +157,19 @@ function registerIpc() {
     if (t && !/^[0-9a-f]{32,128}$/i.test(t)) throw new Error('شكل رمز الزيارات غير صحيح (أحرف وأرقام 0-9 a-f فقط)');
     d.visits = { url, token: t }; store.save();
   });
+  handle('urbackup:save', (f) => {
+    if (!f || typeof f !== 'object') throw new Error('مدخل غير صالح');
+    const d = store.get();
+    const url = urbackup.checkUrl(sec.str(f.url || '', 300).trim());
+    const user = sec.str(f.user || '', 80).trim();
+    const pass = f.pass ? sec.str(f.pass, 200) : d.urbackup.pass;
+    const days = Math.min(30, Math.max(1, parseInt(f.days, 10) || 2));
+    d.urbackup = { ...d.urbackup, url, user, pass, days, enabled: !!f.enabled && !!pass && !!user };
+    store.save();
+  });
+  handle('urbackup:test', () => urbackup.test(store.get().urbackup));
+  handle('urbackup:summary', () => urbackup.summary(store.get().urbackup, store.get().urbackup.days || 2));
+  handle('urbackup:disconnect', () => { const d = store.get(); d.urbackup = { ...d.urbackup, enabled: false, pass: '', fails: 0, state: {} }; store.save(); });
   handle('visits:test', () => visits.test(store.get().visits));
   handle('visits:summary', () => visits.summary(store.get().visits));
   handle('visits:disconnect', () => { store.get().visits = { url: 'https://branches.mustafa-server.vip', token: '' }; store.save(); });
@@ -353,6 +368,8 @@ app.whenReady().then(() => {
     }
   };
   importDrop(); setInterval(importDrop, 60000);
+  const ubTick = () => urbackup.tick(store, (t) => (tg && tg.notifyText ? tg.notifyText(t) : null)).catch((e) => store.log('⚠️ مراقبة UrBackup: ' + String(e.message).slice(0, 100)));
+  setTimeout(ubTick, 120000); setInterval(ubTick, 3600000);
   if (TEST_DIR && process.argv.includes('--smoke')) require('./smoke')(win, store, dataDir);
 });
 

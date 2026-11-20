@@ -115,6 +115,16 @@
         <div class="row"><button id="btnWaProfile">حفظ ملف الوكيل</button></div>
       </div>
       <div class="card">
+        <h3>النسخ الاحتياطي (UrBackup) — تنبيهات</h3>
+        <p class="muted">يفحص كل ساعة حالة نسخ الأجهزة ويرسل لك تنبيهاً على تيليجرام إذا تأخرت نسخة أو فشلت أو توقف UrBackup. يستعمل مستخدماً بصلاحية «الحالة» فقط ولا يقدر يحذف أو يحمّل شيئاً. يعمل من الشبكة المحلية.</p>
+        <label>رابط UrBackup (الشبكة المحلية)<input id="ubUrl" placeholder="http://192.168.100.200:55414"></label>
+        <label>اسم المستخدم<input id="ubUser" placeholder="siraj-monitor"></label>
+        <label>كلمة المرور<input id="ubPass" type="password" placeholder="يُترك فارغاً للإبقاء على المحفوظة"></label>
+        <label>نبّهني إذا تجاوزت آخر نسخة (أيام)<input id="ubDays" inputmode="numeric" placeholder="2"></label>
+        <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="ubOn" style="width:auto"> تفعيل المراقبة والتنبيهات</label>
+        <div class="row"><button id="btnUbSave">حفظ</button><button class="ghost" id="btnUbTest">اختبار الاتصال</button><button class="ghost" id="btnUbOff">فصل</button><span id="ubStatus" class="muted"></span></div>
+      </div>
+      <div class="card">
         <h3>زيارات الفروع — قراءة فقط</h3>
         <p class="muted">يقرأ تقدم الزيارات الشهري لكل براند من برنامج الزيارات. الرمز يُنشأ على السيرفر عند تفعيل الواجهة (لا يعطي أي صلاحية تعديل).</p>
         <label>رابط برنامج الزيارات<input id="vsUrl" placeholder="https://branches.mustafa-server.vip"></label>
