@@ -240,8 +240,12 @@ function fillUb() { const u = state.urbackup || {}; $('ubUrl').value = u.url || 
 const ubForm = () => ({ url: $('ubUrl').value, user: $('ubUser').value, pass: $('ubPass').value, days: $('ubDays').value, enabled: $('ubOn').checked });
 $('btnUbSave').onclick = async () => { await call('urbackup:save', ubForm()); $('ubPass').value = ''; toast('تم الحفظ'); await refresh(); fillUb(); };
 $('btnUbTest').onclick = (e) => withBusy(e.target, async () => {
-  await call('urbackup:save', ubForm()); $('ubPass').value = '';
-  const r = await call('urbackup:test'); toast(`اتصال ناجح ✅ (${r.clients} أجهزة)`); await refresh(); fillUb();
+  $('ubStatus').textContent = '⏳ جاري الاختبار…';
+  try {
+    await call('urbackup:save', ubForm()); $('ubPass').value = '';
+    const r = await call('urbackup:test'); toast(`اتصال ناجح ✅ (${r.clients} أجهزة)`); await refresh(); fillUb();
+    $('ubStatus').textContent = `✅ اتصال ناجح (${r.clients} أجهزة)`;
+  } catch (err) { $('ubStatus').textContent = '❌ ' + (err && err.message ? err.message : err); }
 });
 $('btnUbOff').onclick = async () => { await call('urbackup:disconnect'); await refresh(); fillUb(); toast('تم فصل مراقبة UrBackup'); };
 let visitsData = null, visitsFetching = false;
